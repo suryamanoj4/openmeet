@@ -1,6 +1,9 @@
 # OpenMeets - Feature List
 
-A comprehensive list of all features to be built in the OpenMeets event management platform.
+A comprehensive list of features for the OpenMeets event management platform.
+
+**Frontend:** Svelte + TypeScript  
+**Backend:** FastAPI + Strawberry GraphQL
 
 ---
 
