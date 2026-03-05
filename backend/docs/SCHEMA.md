@@ -18,11 +18,9 @@ erDiagram
     users ||--o{ attendees : "checks_in"
     users ||--o{ audit_logs : "generates"
     users ||--o{ refresh_tokens : "has"
-    users ||--o{ invitations : "sends"
 
     organizations ||--o{ members : "has"
     organizations ||--o{ followers : "followed_by"
-    organizations ||--o{ invitations : "receives"
     organizations ||--o{ events : "owns"
     organizations ||--o{ audit_logs : "contains"
 
@@ -114,10 +112,7 @@ erDiagram
         TIMESTAMP end_date
         VARCHAR timezone
         VARCHAR venue_name
-        VARCHAR venue_address
-        VARCHAR venue_city
-        VARCHAR venue_country
-        VARCHAR venue_postal_code
+        JSONB venue_address
         BOOLEAN is_online
         VARCHAR online_url
         INTEGER max_attendees
@@ -264,15 +259,8 @@ erDiagram
     email_logs {
         UUID id PK
         VARCHAR recipient_email
-        VARCHAR subject
         VARCHAR template_name
         VARCHAR status
-        TIMESTAMP sent_at
-        TIMESTAMP delivered_at
-        TIMESTAMP opened_at
-        TIMESTAMP clicked_at
-        TIMESTAMP bounced_at
-        TEXT bounce_reason
         TEXT error_message
         JSONB metadata
         TIMESTAMP created_at
@@ -362,32 +350,7 @@ Organization membership (users ↔ organizations many-to-many with roles).
 
 ---
 
-### 4. invitations
-
-Pending organization invitations.
-
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | UUID | PRIMARY KEY | Unique invitation identifier |
-| organization_id | UUID | FK → organizations.id, NOT NULL | Organization reference |
-| email | VARCHAR(255) | NOT NULL | Invitee email |
-| role | VARCHAR(50) | NOT NULL | Offered role: admin, member |
-| invited_by | UUID | FK → users.id, NOT NULL | Inviter user |
-| status | VARCHAR(50) | DEFAULT 'pending' | pending, accepted, declined, expired |
-| expires_at | TIMESTAMP | NOT NULL | Invitation expiry (7 days) |
-| accepted_at | TIMESTAMP | NULL | Acceptance timestamp |
-| created_at | TIMESTAMP | DEFAULT NOW() | Creation timestamp |
-| updated_at | TIMESTAMP | DEFAULT NOW() | Last update timestamp |
-
-**Indexes:**
-- `idx_invitations_organization_id` (organization_id)
-- `idx_invitations_email` (email)
-- `idx_invitations_status` (status)
-- `idx_invitations_expires_at` (expires_at)
-
----
-
-### 5. followers
+### 4. followers
 
 Users following organizations (for notifications).
 
@@ -408,7 +371,7 @@ Users following organizations (for notifications).
 
 ---
 
-### 6. events
+### 5. events
 
 Event information.
 
@@ -426,10 +389,7 @@ Event information.
 | end_date | TIMESTAMP | NOT NULL | Event end date/time |
 | timezone | VARCHAR(50) | DEFAULT 'UTC' | Event timezone |
 | venue_name | VARCHAR(255) | NULL | Physical venue name |
-| venue_address | VARCHAR(500) | NULL | Venue street address |
-| venue_city | VARCHAR(100) | NULL | Venue city |
-| venue_country | VARCHAR(100) | NULL | Venue country |
-| venue_postal_code | VARCHAR(20) | NULL | Venue postal code |
+| venue_address | JSONB | NULL | Venue address (structured JSON) |
 | is_online | BOOLEAN | DEFAULT FALSE | Online event flag |
 | online_url | VARCHAR(500) | NULL | Online meeting URL |
 | max_attendees | INTEGER | NULL | Maximum capacity |
@@ -450,13 +410,14 @@ Event information.
 - `idx_events_visibility` (visibility)
 - `idx_events_start_date` (start_date)
 - `idx_events_is_active` (is_active)
+- `idx_events_venue_country` ((venue_address->>'country')) - For filtering by country
 
 **Constraints:**
 - UNIQUE (organization_id, slug)
 
 ---
 
-### 7. event_staff
+### 6. event_staff
 
 Event staff assignments (members assigned to event roles).
 
@@ -483,7 +444,7 @@ Event staff assignments (members assigned to event roles).
 
 ---
 
-### 8. tickets
+### 7. tickets
 
 Ticket types for events.
 
@@ -518,7 +479,7 @@ Ticket types for events.
 
 ---
 
-### 9. orders
+### 8. orders
 
 Customer orders (ticket purchases).
 
@@ -558,7 +519,7 @@ Customer orders (ticket purchases).
 
 ---
 
-### 10. order_items
+### 9. order_items
 
 Individual ticket items within an order.
 
@@ -582,7 +543,7 @@ Individual ticket items within an order.
 
 ---
 
-### 11. attendees
+### 10. attendees
 
 Individual attendee information (one per ticket).
 
@@ -615,7 +576,7 @@ Individual attendee information (one per ticket).
 
 ---
 
-### 12. payments
+### 11. payments
 
 Payment transactions for orders.
 
@@ -645,7 +606,7 @@ Payment transactions for orders.
 
 ---
 
-### 13. audit_logs
+### 12. audit_logs
 
 System-wide audit trail.
 
@@ -671,7 +632,7 @@ System-wide audit trail.
 
 ---
 
-### 14. refresh_tokens
+### 13. refresh_tokens
 
 JWT refresh token storage for session management.
 
@@ -695,31 +656,23 @@ JWT refresh token storage for session management.
 
 ---
 
-### 15. email_logs
+### 14. email_logs
 
-Email delivery tracking.
+Email delivery tracking (simplified).
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | id | UUID | PRIMARY KEY | Unique email log identifier |
 | recipient_email | VARCHAR(255) | NOT NULL | Recipient email |
-| subject | VARCHAR(500) | NOT NULL | Email subject |
 | template_name | VARCHAR(100) | NULL | Email template used |
-| status | VARCHAR(50) | DEFAULT 'pending' | pending, sent, delivered, bounced, failed |
-| sent_at | TIMESTAMP | NULL | Send timestamp |
-| delivered_at | TIMESTAMP | NULL | Delivery confirmation |
-| opened_at | TIMESTAMP | NULL | Open tracking |
-| clicked_at | TIMESTAMP | NULL | Click tracking |
-| bounced_at | TIMESTAMP | NULL | Bounce timestamp |
-| bounce_reason | TEXT | NULL | Bounce message |
+| status | VARCHAR(50) | DEFAULT 'pending' | pending, sent, failed |
 | error_message | TEXT | NULL | Error if failed |
-| metadata | JSONB | DEFAULT {} | Additional data |
+| metadata | JSONB | DEFAULT {} | Context (order_id, event_id, user_id) |
 | created_at | TIMESTAMP | DEFAULT NOW() | Creation timestamp |
 
 **Indexes:**
 - `idx_email_logs_recipient_email` (recipient_email)
 - `idx_email_logs_status` (status)
-- `idx_email_logs_template_name` (template_name)
 - `idx_email_logs_created_at` (created_at)
 
 ---
@@ -736,7 +689,6 @@ Email delivery tracking.
 - users → audit_logs (user_id)
 - users → refresh_tokens (user_id)
 - organizations → members (organization_id)
-- organizations → invitations (organization_id)
 - organizations → followers (organization_id)
 - organizations → events (organization_id)
 - events → event_staff (event_id)
@@ -760,12 +712,6 @@ Email delivery tracking.
 ### member_role
 - `admin` - Full organization control
 - `member` - Standard member
-
-### invitation_status
-- `pending` - Awaiting response
-- `accepted` - Invitation accepted
-- `declined` - Invitation declined
-- `expired` - Invitation expired
 
 ### event_status
 - `draft` - Not visible publicly
@@ -856,6 +802,25 @@ Email delivery tracking.
   }
 }
 ```
+
+### events.venue_address
+```json
+{
+  "street": "123 Main Street",
+  "city": "San Francisco",
+  "state": "CA",
+  "postal_code": "94102",
+  "country": "US",
+  "formatted": "123 Main Street, San Francisco, CA 94102, US"
+}
+```
+
+**Validation rules:**
+- `country`: ISO 3166-1 alpha-2 country code (required if venue_name is set)
+- `postal_code`: Validated format based on country
+- `city`: Required for physical venues
+- `street`: Optional (some venues may only have city/region)
+- `formatted`: Auto-generated or manually provided full address
 
 ### attendees.custom_data
 ```json

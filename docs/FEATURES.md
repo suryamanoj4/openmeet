@@ -56,14 +56,11 @@ A comprehensive list of features for the OpenMeets event management platform.
 - Member (view events, view reports, can be assigned as event staff)
 
 ### Member Management
-- Invite members by email (admin only)
-- Accept/reject invitations
+- Add members directly by email (admin only)
 - Change member roles (admin can promote member to admin, and vice versa)
 - Remove members from organization (admin only)
 - View member list with roles
-- Pending invitation management
-- Invitation expiry (7 days)
-- Bulk invite members (CSV upload)
+- Bulk add members (CSV upload)
 - Transfer admin ownership (admin can transfer full control to another member)
 
 ### Organization Followers
@@ -449,7 +446,7 @@ A comprehensive list of features for the OpenMeets event management platform.
 - Ticket delivery
 - Event reminder (24 hours before)
 - Event update notifications
-- Member invitation
+- Member added notification
 - Refund confirmation
 
 ### Email Templates
@@ -530,7 +527,7 @@ A comprehensive list of features for the OpenMeets event management platform.
 - New order received (organizer/admin)
 - Payment confirmed (attendee, organizer)
 - Event reminder (24 hours before)
-- Member invitation
+- Member added notification
 - Event update (all attendees)
 - Staff assignment (selected members)
 - New event from followed organization (followers)
@@ -540,7 +537,7 @@ A comprehensive list of features for the OpenMeets event management platform.
 - Orders & Payments
 - Event Updates
 - Staff Assignments
-- Membership & Invitations
+- Membership
 - Followed Organizations
 
 ### Notification Preferences
@@ -740,7 +737,7 @@ User Registration
 - Unlimited following
 
 **Membership:**
-- Invitation required (or join request if enabled)
+- Added by organization admin
 - Access to member-only events and resources
 - Can be assigned as event staff
 - Single role per organization
@@ -752,7 +749,7 @@ User Registration
 | Module | Feature Count |
 |--------|---------------|
 | 1. Authentication & User Management | 15 |
-| 2. Organization Management | 20 |
+| 2. Organization Management | 15 |
 | 3. Event Management | 28 |
 | 4. Event Registration & Payments | 18 |
 | 5. Event Staff Management | 12 |
@@ -774,4 +771,4 @@ User Registration
 | 21. Integrations | 6 |
 | 22. User & Organization Relationship | 10 |
 
-**Total Features: ~325**
+**Total Features: ~320**
