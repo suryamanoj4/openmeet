@@ -2,111 +2,17 @@
 
 Event management platform built with Svelte, TypeScript, FastAPI, and GraphQL.
 
----
+## What It Is
 
-## About
+Multi-tenant event management platform enabling organizations to create, manage, and host events with:
+- Custom event pages (drag-drop builder)
+- Ticket sales with inventory management
+- Payment processing (Stripe, Razorpay)
+- Attendee check-in with QR codes
+- Bulk email communication
+- Analytics and reporting
 
-OpenMeets is a multi-tenant event management platform that enables organizations to create, manage, and host events with integrated ticketing, payments, and attendee management.
-
-**Key Principle:** All events are created under organizations. Users join organizations as admins or members, and organization admins can assign members to event staff roles (organizer, co-organizer, volunteer, security).
-
----
-
-## Project Structure
-
-This is a monorepo with the following structure:
-
-```
-openmeet/
-├── backend/     # FastAPI + Strawberry GraphQL API
-├── frontend/    # Svelte + TypeScript application
-└── docs/        # Documentation
-```
-
----
-
-## Tech Stack
-
-### Frontend
-
-| Component | Technology |
-|-----------|------------|
-| **Framework** | Svelte |
-| **Language** | TypeScript |
-| **State Management** | Svelte Stores |
-| **Styling** | TailwindCSS |
-| **GraphQL Client** | Urql / Apollo Client |
-
-### Backend
-
-| Component | Technology |
-|-----------|------------|
-| **Framework** | FastAPI (Python 3.13+) |
-| **GraphQL** | Strawberry |
-| **Database** | PostgreSQL 15+ |
-| **ORM** | SQLAlchemy 2.0 (Async) |
-| **Migrations** | Alembic |
-| **Authentication** | JWT + OAuth2 |
-| **Cache** | Redis |
-| **Task Queue** | Celery |
-| **Payment** | Stripe, Razorpay |
-| **Email** | SMTP (SendGrid/AWS SES) |
-| **PDF** | ReportLab |
-
----
-
-## Core Features
-
-### Authentication & Users
-- JWT-based authentication with refresh tokens
-- Email verification and password reset
-- User profile management
-
-### Organization Management
-- Multi-tenant organization system
-- Admin and member roles
-- Member invitations and role management
-- Organization followers for notifications
-
-### Event Management
-- Full event CRUD with draft/publish workflow
-- Event staff assignment from organization members
-- Venue and online event support
-- Event visibility controls (public, private, unlisted)
-
-### Registration & Payments
-- Ticket-based registration with payment integration
-- Multiple payment providers (Stripe, Razorpay)
-- Refund management
-- Order and attendee tracking
-
-### Custom Event Pages
-- Drag-and-drop page builder
-- Rich content blocks (schedule, speakers, sponsors)
-- Custom themes and layouts
-- SEO optimization
-
-### Attendee Management
-- Real-time registration analytics
-- Attendee status tracking
-- Bulk operations and exports
-- QR code check-in system
-
-### Bulk Email Communication
-- Email campaigns to attendees
-- Recipient filtering by ticket type, status
-- Email templates with personalization
-- Delivery analytics
-
-### Ticketing
-- Multiple ticket types per event
-- Customizable ticket designs
-- PDF ticket generation with QR codes
-- Inventory management
-
----
-
-## Getting Started
+## Quick Start
 
 ### Backend
 
@@ -124,17 +30,38 @@ npm install
 npm run dev
 ```
 
----
-
 ## Documentation
 
-See the [`docs/`](docs/) directory for detailed documentation:
+| Doc | Purpose |
+|-----|---------|
+| [docs/SPEC.md](docs/SPEC.md) | What to build (product) |
+| [docs/TODO.md](docs/TODO.md) | Development status |
+| [backend/docs/SPEC.md](backend/docs/SPEC.md) | Backend guide |
+| [frontend/docs/SPEC.md](frontend/docs/SPEC.md) | Frontend guide |
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Features](docs/FEATURES.md)
+## Architecture
 
----
+```
+openmeet/
+├── backend/     # FastAPI + GraphQL (Strawberry)
+├── frontend/    # Svelte + TypeScript
+└── docs/        # Documentation
+```
 
-## License
+## Key Files
 
-AGPL-3.0
+| Path | Description |
+|------|-------------|
+| backend/main.py | Server entry |
+| backend/gql_schema/ | GraphQL API |
+| backend/models/ | Database models |
+| frontend/src/routes/ | Pages |
+| frontend/src/lib/components/ | UI components |
+
+## Tech Stack
+
+- Frontend: Svelte, TypeScript, TailwindCSS, Urql
+- Backend: FastAPI, Python 3.13+, PostgreSQL, SQLAlchemy 2.0
+- GraphQL: Strawberry
+
+License: AGPL-3.0
