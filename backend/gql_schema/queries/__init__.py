@@ -27,6 +27,7 @@ from gql_schema.services import (
     TicketService,
     OrderService,
     AttendeeService,
+    PaymentService,
 )
 from gql_schema.services.mapping import (
     user_to_type,
@@ -36,6 +37,7 @@ from gql_schema.services.mapping import (
     order_to_type,
     order_item_to_type,
     attendee_to_type,
+    payment_to_type,
     member_to_type,
     follower_to_type,
     event_staff_to_type,
@@ -46,8 +48,30 @@ def get_session(info: Info) -> AsyncSession:
     return info.context["db"]
 
 
+def get_auth_user(info: Info):
+    ctx = info.context
+    if isinstance(ctx, dict) and ctx.get("current_user"):
+        return ctx["current_user"]
+    return None
+
+
 @strawberry.type
 class Query:
+    @strawberry.field
+    async def me(
+        self,
+        info: Info,
+    ) -> Optional[UserType]:
+        auth_user = get_auth_user(info)
+        if not auth_user:
+            return None
+
+        session = get_session(info)
+        service = UserService(session)
+        user = await service.get_by_id(auth_user.user_id)
+        if not user:
+            return None
+        return UserType(**user_to_type(user))
     @strawberry.field
     async def users(
         self,
@@ -298,6 +322,41 @@ class Query:
         service = AttendeeService(session)
         attendees = await service.search(event_id, query, skip=skip, limit=limit)
         return [AttendeeType(**attendee_to_type(a)) for a in attendees]
+
+    @strawberry.field
+    async def payments(
+        self,
+        info: Info,
+        order_id: Optional[UUID] = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> List[PaymentType]:
+        session = get_session(info)
+        service = PaymentService(session)
+        if order_id:
+            payments = await service.get_by_order(order_id, skip=skip, limit=limit)
+        else:
+            payments = await service.get_all(skip=skip, limit=limit)
+        return [PaymentType(**payment_to_type(p)) for p in payments]
+
+    @strawberry.field
+    async def payment(
+        self,
+        info: Info,
+        id: Optional[UUID] = None,
+        provider_payment_id: Optional[str] = None,
+    ) -> Optional[PaymentType]:
+        session = get_session(info)
+        service = PaymentService(session)
+        if id:
+            payment = await service.get_by_id(id)
+        elif provider_payment_id:
+            payment = await service.get_by_provider_payment_id(provider_payment_id)
+        else:
+            return None
+        if not payment:
+            return None
+        return PaymentType(**payment_to_type(payment))
 
 
 schema = strawberry.Schema(query=Query)

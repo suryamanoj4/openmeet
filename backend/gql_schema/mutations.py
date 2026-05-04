@@ -5,10 +5,19 @@ from uuid import UUID
 
 import strawberry
 from strawberry import Info
-from passlib.hash import bcrypt
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from auth import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token_str,
+    store_refresh_token,
+    verify_refresh_token,
+    revoke_refresh_token,
+    revoke_all_user_tokens,
+)
 from gql_schema.types import (
     UserType,
     OrganizationType,
@@ -16,7 +25,9 @@ from gql_schema.types import (
     TicketType,
     OrderType,
     AttendeeType,
+    PaymentType,
 )
+from gql_schema.types.auth import AuthPayload, RefreshPayload
 from gql_schema.inputs import (
     CreateUserInput,
     UpdateUserInput,
@@ -30,6 +41,7 @@ from gql_schema.inputs import (
     UpdateOrderInput,
     OrderItemInput,
 )
+from gql_schema.inputs.auth_input import LoginInput, RegisterInput
 from gql_schema.services import (
     UserService,
     OrganizationService,
@@ -37,6 +49,7 @@ from gql_schema.services import (
     TicketService,
     OrderService,
     AttendeeService,
+    PaymentService,
 )
 from gql_schema.services.mapping import (
     user_to_type,
@@ -45,6 +58,7 @@ from gql_schema.services.mapping import (
     ticket_to_type,
     order_to_type,
     attendee_to_type,
+    payment_to_type,
 )
 from models import User, Organization, Event, Ticket
 
@@ -53,8 +67,140 @@ def get_session(info: Info) -> AsyncSession:
     return info.context["db"]
 
 
+def get_auth_user(info: Info):
+    ctx = info.context
+    if isinstance(ctx, dict) and ctx.get("current_user"):
+        return ctx["current_user"]
+    return None
+
+
 @strawberry.type
 class Mutation:
+    # ----- Auth mutations -----
+
+    @strawberry.mutation
+    async def register(
+        self,
+        info: Info,
+        input: RegisterInput,
+    ) -> AuthPayload:
+        session = get_session(info)
+        service = UserService(session)
+
+        existing = await service.get_by_email(input.email)
+        if existing:
+            raise ValueError("Email already registered")
+
+        user = await service.create(
+            User,
+            email=input.email,
+            password_hash=hash_password(input.password),
+            first_name=input.first_name or "",
+            last_name=input.last_name or "",
+            phone=input.phone,
+        )
+        await session.commit()
+
+        access_token = create_access_token(user.id, user.role, user.is_superuser)
+        refresh_token = create_refresh_token_str(user.id)
+        await store_refresh_token(session, user.id, refresh_token)
+        await session.commit()
+
+        return AuthPayload(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user_id=user.id,
+            email=user.email,
+            role=user.role,
+            is_superuser=user.is_superuser,
+        )
+
+    @strawberry.mutation
+    async def login(
+        self,
+        info: Info,
+        input: LoginInput,
+    ) -> AuthPayload:
+        session = get_session(info)
+        service = UserService(session)
+
+        user = await service.get_by_email(input.email)
+        if not user or not verify_password(input.password, user.password_hash):
+            raise ValueError("Invalid email or password")
+
+        if not user.is_active:
+            raise ValueError("Account is deactivated")
+
+        access_token = create_access_token(user.id, user.role, user.is_superuser)
+        refresh_token = create_refresh_token_str(user.id)
+        await store_refresh_token(session, user.id, refresh_token)
+        await session.commit()
+
+        return AuthPayload(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user_id=user.id,
+            email=user.email,
+            role=user.role,
+            is_superuser=user.is_superuser,
+        )
+
+    @strawberry.mutation
+    async def refresh_token(
+        self,
+        info: Info,
+        refresh_token: str,
+    ) -> RefreshPayload:
+        session = get_session(info)
+
+        rt = await verify_refresh_token(session, refresh_token)
+        if not rt:
+            raise ValueError("Invalid or expired refresh token")
+
+        user = await session.get(User, rt.user_id)
+        if not user or not user.is_active:
+            raise ValueError("User not found or inactive")
+
+        access_token = create_access_token(user.id, user.role, user.is_superuser)
+        return RefreshPayload(access_token=access_token)
+
+    @strawberry.mutation
+    async def revoke_token(
+        self,
+        info: Info,
+        refresh_token: str,
+    ) -> bool:
+        session = get_session(info)
+        result = await revoke_refresh_token(session, refresh_token)
+        await session.commit()
+        return result
+
+    @strawberry.mutation
+    async def logout(
+        self,
+        info: Info,
+        refresh_token: str,
+    ) -> bool:
+        session = get_session(info)
+        result = await revoke_refresh_token(session, refresh_token)
+        await session.commit()
+        return result
+
+    @strawberry.mutation
+    async def logout_all(
+        self,
+        info: Info,
+    ) -> bool:
+        auth_user = get_auth_user(info)
+        if not auth_user:
+            raise PermissionError("Authentication required")
+
+        session = get_session(info)
+        await revoke_all_user_tokens(session, auth_user.user_id)
+        await session.commit()
+        return True
+
+    # ----- User mutations -----
     @strawberry.mutation
     async def create_user(
         self,
@@ -66,7 +212,7 @@ class Mutation:
         user = await service.create(
             User,
             email=input.email,
-            password_hash=bcrypt.hash(input.password),
+            password_hash=hash_password(input.password),
             first_name=input.first_name,
             last_name=input.last_name,
             phone=input.phone,
@@ -468,6 +614,58 @@ class Mutation:
             attendee = await service.update_notes(attendee_id, notes)
             await session.commit()
             return AttendeeType(**attendee_to_type(attendee))
+        except ValueError:
+            await session.rollback()
+            return None
+
+    # ----- Payment mutations -----
+
+    @strawberry.mutation
+    async def create_payment(
+        self,
+        info: Info,
+        order_id: UUID,
+        provider: str,
+        provider_payment_id: str,
+        amount: float,
+        currency: str = "USD",
+        payment_method: Optional[str] = None,
+    ) -> Optional[PaymentType]:
+        session = get_session(info)
+        service = PaymentService(session)
+        try:
+            payment = await service.create_payment(
+                order_id=order_id,
+                provider=provider,
+                provider_payment_id=provider_payment_id,
+                amount=amount,
+                currency=currency,
+                payment_method=payment_method,
+            )
+            await session.commit()
+            return PaymentType(**payment_to_type(payment))
+        except ValueError:
+            await session.rollback()
+            return None
+
+    @strawberry.mutation
+    async def process_refund(
+        self,
+        info: Info,
+        provider_payment_id: str,
+        refund_amount: float,
+        refund_reason: Optional[str] = None,
+    ) -> Optional[PaymentType]:
+        session = get_session(info)
+        service = PaymentService(session)
+        try:
+            payment = await service.process_refund(
+                provider_payment_id=provider_payment_id,
+                refund_amount=refund_amount,
+                refund_reason=refund_reason,
+            )
+            await session.commit()
+            return PaymentType(**payment_to_type(payment)) if payment else None
         except ValueError:
             await session.rollback()
             return None
