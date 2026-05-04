@@ -1,22 +1,22 @@
+"""Base service for all domain services."""
+
 from typing import Generic, TypeVar, Type, Optional, List
 from uuid import UUID
 
 from sqlmodel import select, func
-from strawberry import Info
 from sqlalchemy.ext.asyncio import AsyncSession
 
 ModelType = TypeVar("ModelType")
 
 
 class BaseService(Generic[ModelType]):
-    def __init__(self, info: Info):
-        self.info = info
-        self._session: Optional[AsyncSession] = None
+    """Base service providing common database operations."""
+
+    def __init__(self, session: AsyncSession):
+        self._session = session
 
     @property
     def session(self) -> AsyncSession:
-        if self._session is None:
-            self._session = self.info.context["db"]
         return self._session
 
     async def get_by_id(self, model: Type[ModelType], id: UUID) -> Optional[ModelType]:

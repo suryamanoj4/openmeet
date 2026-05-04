@@ -1,14 +1,22 @@
+"""User service for managing users."""
+
+import uuid
 from typing import Optional, List
 from uuid import UUID
 
 from sqlmodel import select
-from strawberry import Info
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from gql_schema.services.base import BaseService
 from models import User, Member, Follower
 
 
 class UserService(BaseService[User]):
+    """Service for user operations."""
+
+    def __init__(self, session: AsyncSession):
+        super().__init__(session)
+
     async def get_by_email(self, email: str) -> Optional[User]:
         result = await self.session.exec(select(User).where(User.email == email))
         return result.first()
