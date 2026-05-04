@@ -18,6 +18,11 @@ from gql_schema.inputs.ticket_input import (
     UpdateTicketInput,
     TicketMutationResult,
 )
+from gql_schema.inputs.order_input import (
+    CreateOrderInput,
+    UpdateOrderInput,
+    OrderItemInput,
+)
 
 __all__ = [
     "CreateUserInput",
@@ -32,4 +37,7 @@ __all__ = [
     "CreateTicketInput",
     "UpdateTicketInput",
     "TicketMutationResult",
+    "CreateOrderInput",
+    "UpdateOrderInput",
+    "OrderItemInput",
 ]
