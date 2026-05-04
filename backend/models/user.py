@@ -1,10 +1,19 @@
 """User model."""
 
+import enum
 import uuid
 from datetime import datetime
 from typing import Optional
 
 from sqlmodel import Field, Relationship, SQLModel
+
+
+class UserRole(str, enum.Enum):
+    """Platform-level user role."""
+
+    USER = "user"
+    ORGANIZER = "organizer"
+    ADMIN = "admin"
 
 
 class UserBase(SQLModel):
@@ -17,6 +26,8 @@ class UserBase(SQLModel):
     phone: Optional[str] = Field(default=None, max_length=20)
     avatar_url: Optional[str] = Field(default=None, max_length=500)
     is_email_verified: bool = Field(default=False)
+    role: str = Field(default=UserRole.USER.value, max_length=20)
+    is_superuser: bool = Field(default=False)
 
 
 class User(UserBase, table=True):

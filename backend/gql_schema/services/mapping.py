@@ -32,6 +32,8 @@ def user_to_type(user) -> dict:
         "phone": user.phone,
         "avatar_url": user.avatar_url,
         "is_email_verified": user.is_email_verified,
+        "role": user.role,
+        "is_superuser": user.is_superuser,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
     }

@@ -15,6 +15,8 @@ class UserType:
     phone: Optional[str]
     avatar_url: Optional[str]
     is_email_verified: bool
+    role: str
+    is_superuser: bool
     created_at: datetime
     updated_at: datetime
 
@@ -24,7 +26,8 @@ class UserType:
     ) -> list[Annotated["OrganizationType", lazy("gql_schema.types.organization")]]:
         from gql_schema.services.user_service import UserService
 
-        service = UserService(info)
+        session = info.context["db"]
+        service = UserService(session)
         return await service.get_user_organizations(self.id)
 
     @strawberry.field
@@ -33,5 +36,6 @@ class UserType:
     ) -> list[Annotated["FollowerType", lazy("gql_schema.types.follower")]]:
         from gql_schema.services.user_service import UserService
 
-        service = UserService(info)
+        session = info.context["db"]
+        service = UserService(session)
         return await service.get_user_followers(self.id)
