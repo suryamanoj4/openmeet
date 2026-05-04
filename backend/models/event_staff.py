@@ -29,7 +29,7 @@ class EventStaff(EventStaffBase, table=True):
 
     # Relationships
     event: "Event" = Relationship(back_populates="staff_assignments")
-    member: "User" = Relationship(back_populates="event_staff_assignments")
+    member: "Member" = Relationship(back_populates="event_staff_assignments")
 
     def __repr__(self) -> str:
         return f"<EventStaff {self.member_id} as {self.role}>"
