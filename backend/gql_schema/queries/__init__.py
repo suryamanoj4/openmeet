@@ -1,8 +1,11 @@
+"""GraphQL Query definitions."""
+
 from typing import List, Optional
 from uuid import UUID
-
 import strawberry
 from strawberry import Info
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from gql_schema.types import (
     UserType,
@@ -17,8 +20,30 @@ from gql_schema.types import (
     PaymentType,
     OrderItemType,
 )
-from gql_schema.services import UserService, OrganizationService, EventService
-from models import User, Organization, Event, Ticket, Member, Order, Attendee
+from gql_schema.services import (
+    UserService,
+    OrganizationService,
+    EventService,
+    TicketService,
+    OrderService,
+    AttendeeService,
+)
+from gql_schema.services.mapping import (
+    user_to_type,
+    organization_to_type,
+    event_to_type,
+    ticket_to_type,
+    order_to_type,
+    order_item_to_type,
+    attendee_to_type,
+    member_to_type,
+    follower_to_type,
+    event_staff_to_type,
+)
+
+
+def get_session(info: Info) -> AsyncSession:
+    return info.context["db"]
 
 
 @strawberry.type
@@ -30,22 +55,10 @@ class Query:
         skip: int = 0,
         limit: int = 100,
     ) -> List[UserType]:
-        service = UserService(info)
+        session = get_session(info)
+        service = UserService(session)
         users = await service.get_all(skip=skip, limit=limit)
-        return [
-            UserType(
-                id=user.id,
-                email=user.email,
-                first_name=user.first_name,
-                last_name=user.last_name,
-                phone=user.phone,
-                avatar_url=user.avatar_url,
-                is_email_verified=user.is_email_verified,
-                created_at=user.created_at,
-                updated_at=user.updated_at,
-            )
-            for user in users
-        ]
+        return [UserType(**user_to_type(user)) for user in users]
 
     @strawberry.field
     async def user(
@@ -53,21 +66,12 @@ class Query:
         info: Info,
         id: UUID,
     ) -> Optional[UserType]:
-        service = UserService(info)
+        session = get_session(info)
+        service = UserService(session)
         user = await service.get_by_id(id)
         if not user:
             return None
-        return UserType(
-            id=user.id,
-            email=user.email,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            phone=user.phone,
-            avatar_url=user.avatar_url,
-            is_email_verified=user.is_email_verified,
-            created_at=user.created_at,
-            updated_at=user.updated_at,
-        )
+        return UserType(**user_to_type(user))
 
     @strawberry.field
     async def organizations(
@@ -76,24 +80,10 @@ class Query:
         skip: int = 0,
         limit: int = 100,
     ) -> List[OrganizationType]:
-        service = OrganizationService(info)
+        session = get_session(info)
+        service = OrganizationService(session)
         orgs = await service.get_all(skip=skip, limit=limit)
-        return [
-            OrganizationType(
-                id=org.id,
-                name=org.name,
-                slug=org.slug,
-                description=org.description,
-                logo_url=org.logo_url,
-                website_url=org.website_url,
-                social_links=org.social_links,
-                settings=org.settings,
-                is_verified=org.is_verified,
-                created_at=org.created_at,
-                updated_at=org.updated_at,
-            )
-            for org in orgs
-        ]
+        return [OrganizationType(**organization_to_type(org)) for org in orgs]
 
     @strawberry.field
     async def organization(
@@ -101,23 +91,56 @@ class Query:
         info: Info,
         id: UUID,
     ) -> Optional[OrganizationType]:
-        service = OrganizationService(info)
+        session = get_session(info)
+        service = OrganizationService(session)
         org = await service.get_by_id(id)
         if not org:
             return None
-        return OrganizationType(
-            id=org.id,
-            name=org.name,
-            slug=org.slug,
-            description=org.description,
-            logo_url=org.logo_url,
-            website_url=org.website_url,
-            social_links=org.social_links,
-            settings=org.settings,
-            is_verified=org.is_verified,
-            created_at=org.created_at,
-            updated_at=org.updated_at,
+        return OrganizationType(**organization_to_type(org))
+
+    @strawberry.field
+    async def organization_by_slug(
+        self,
+        info: Info,
+        slug: str,
+    ) -> Optional[OrganizationType]:
+        session = get_session(info)
+        service = OrganizationService(session)
+        org = await service.get_by_slug(slug)
+        if not org:
+            return None
+        return OrganizationType(**organization_to_type(org))
+
+    @strawberry.field
+    async def organization_members(
+        self,
+        info: Info,
+        organization_id: UUID,
+        role: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[MemberType]:
+        session = get_session(info)
+        service = OrganizationService(session)
+        members = await service.get_members(
+            organization_id, role=role, skip=skip, limit=limit
         )
+        return [MemberType(**member_to_type(m)) for m in members]
+
+    @strawberry.field
+    async def organization_followers(
+        self,
+        info: Info,
+        organization_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[FollowerType]:
+        session = get_session(info)
+        service = OrganizationService(session)
+        followers = await service.get_followers(
+            organization_id, skip=skip, limit=limit
+        )
+        return [FollowerType(**follower_to_type(f)) for f in followers]
 
     @strawberry.field
     async def events(
@@ -127,44 +150,12 @@ class Query:
         skip: int = 0,
         limit: int = 100,
     ) -> List[EventType]:
-        service = EventService(info)
+        session = get_session(info)
+        service = EventService(session)
         events = await service.get_all(
-            skip=skip,
-            limit=limit,
-            organization_id=organization_id,
+            skip=skip, limit=limit, organization_id=organization_id
         )
-        return [
-            EventType(
-                id=event.id,
-                organization_id=event.organization_id,
-                name=event.name,
-                slug=event.slug,
-                description=event.description,
-                event_type=event.event_type,
-                status=event.status,
-                visibility=event.visibility,
-                start_date=event.start_date,
-                end_date=event.end_date,
-                timezone=event.timezone,
-                venue_name=event.venue_name,
-                venue_address=event.venue_address,
-                venue_city=event.venue_city,
-                venue_country=event.venue_country,
-                is_online=event.is_online,
-                online_url=event.online_url,
-                max_attendees=event.max_attendees,
-                min_tickets_per_order=event.min_tickets_per_order,
-                max_tickets_per_order=event.max_tickets_per_order,
-                registration_start=event.registration_start,
-                registration_end=event.registration_end,
-                cover_image_url=event.cover_image_url,
-                banner_image_url=event.banner_image_url,
-                settings=event.settings,
-                created_at=event.created_at,
-                updated_at=event.updated_at,
-            )
-            for event in events
-        ]
+        return [EventType(**event_to_type(e)) for e in events]
 
     @strawberry.field
     async def event(
@@ -172,36 +163,141 @@ class Query:
         info: Info,
         id: UUID,
     ) -> Optional[EventType]:
-        service = EventService(info)
+        session = get_session(info)
+        service = EventService(session)
         event = await service.get_by_id(id)
         if not event:
             return None
-        return EventType(
-            id=event.id,
-            organization_id=event.organization_id,
-            name=event.name,
-            slug=event.slug,
-            description=event.description,
-            event_type=event.event_type,
-            status=event.status,
-            visibility=event.visibility,
-            start_date=event.start_date,
-            end_date=event.end_date,
-            timezone=event.timezone,
-            venue_name=event.venue_name,
-            venue_address=event.venue_address,
-            venue_city=event.venue_city,
-            venue_country=event.venue_country,
-            is_online=event.is_online,
-            online_url=event.online_url,
-            max_attendees=event.max_attendees,
-            min_tickets_per_order=event.min_tickets_per_order,
-            max_tickets_per_order=event.max_tickets_per_order,
-            registration_start=event.registration_start,
-            registration_end=event.registration_end,
-            cover_image_url=event.cover_image_url,
-            banner_image_url=event.banner_image_url,
-            settings=event.settings,
-            created_at=event.created_at,
-            updated_at=event.updated_at,
+        return EventType(**event_to_type(event))
+
+    @strawberry.field
+    async def event_by_slug(
+        self,
+        info: Info,
+        organization_id: UUID,
+        slug: str,
+    ) -> Optional[EventType]:
+        session = get_session(info)
+        service = EventService(session)
+        event = await service.get_by_slug(slug)
+        if not event or event.organization_id != organization_id:
+            return None
+        return EventType(**event_to_type(event))
+
+    @strawberry.field
+    async def event_tickets(
+        self,
+        info: Info,
+        event_id: UUID,
+        active_only: bool = True,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[TicketType]:
+        session = get_session(info)
+        service = TicketService(session)
+        tickets = await service.get_by_event(
+            event_id, active_only=active_only, skip=skip, limit=limit
         )
+        return [TicketType(**ticket_to_type(t)) for t in tickets]
+
+    @strawberry.field
+    async def available_tickets(
+        self,
+        info: Info,
+        event_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[TicketType]:
+        session = get_session(info)
+        service = TicketService(session)
+        tickets = await service.get_available_tickets(
+            event_id, skip=skip, limit=limit
+        )
+        return [TicketType(**ticket_to_type(t)) for t in tickets]
+
+    @strawberry.field
+    async def orders(
+        self,
+        info: Info,
+        event_id: Optional[UUID] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[OrderType]:
+        session = get_session(info)
+        service = OrderService(session)
+        orders = await service.get_all(
+            skip=skip, limit=limit, event_id=event_id
+        )
+        return [OrderType(**order_to_type(o)) for o in orders]
+
+    @strawberry.field
+    async def order(
+        self,
+        info: Info,
+        id: UUID,
+    ) -> Optional[OrderType]:
+        session = get_session(info)
+        service = OrderService(session)
+        order = await service.get_by_id(id)
+        if not order:
+            return None
+        return OrderType(**order_to_type(order))
+
+    @strawberry.field
+    async def order_by_number(
+        self,
+        info: Info,
+        order_number: str,
+    ) -> Optional[OrderType]:
+        session = get_session(info)
+        service = OrderService(session)
+        order = await service.get_by_order_number(order_number)
+        if not order:
+            return None
+        return OrderType(**order_to_type(order))
+
+    @strawberry.field
+    async def attendees(
+        self,
+        info: Info,
+        ticket_id: Optional[UUID] = None,
+        check_in_status: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[AttendeeType]:
+        session = get_session(info)
+        service = AttendeeService(session)
+        attendees = await service.get_all(
+            skip=skip, limit=limit, ticket_id=ticket_id
+        )
+        return [AttendeeType(**attendee_to_type(a)) for a in attendees]
+
+    @strawberry.field
+    async def attendee(
+        self,
+        info: Info,
+        id: UUID,
+    ) -> Optional[AttendeeType]:
+        session = get_session(info)
+        service = AttendeeService(session)
+        attendee = await service.get_by_id(id)
+        if not attendee:
+            return None
+        return AttendeeType(**attendee_to_type(attendee))
+
+    @strawberry.field
+    async def search_attendees(
+        self,
+        info: Info,
+        event_id: UUID,
+        query: str,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[AttendeeType]:
+        session = get_session(info)
+        service = AttendeeService(session)
+        attendees = await service.search(event_id, query, skip=skip, limit=limit)
+        return [AttendeeType(**attendee_to_type(a)) for a in attendees]
+
+
+schema = strawberry.Schema(query=Query)
