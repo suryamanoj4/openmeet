@@ -19,35 +19,37 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| User registration | ✅ Done | Basic implementation |
-| User login | ✅ Done | JWT tokens |
-| Token refresh | 📋 To Do | Implement refresh endpoint |
+| User registration | ✅ Done | register mutation with JWT |
+| User login | ✅ Done | login mutation with JWT |
+| Token refresh | ✅ Done | refreshToken mutation |
+| Token revoke | ✅ Done | revokeToken + logout mutations |
+| Session management | ✅ Done | logout_all mutation |
+| RBAC (roles) | ✅ Done | user/organizer/admin + is_superuser |
 | Password reset | 📋 To Do | Email token flow |
 | Email verification | 📋 To Do | Send verification email |
-| Session management | 📋 To Do | View/logout sessions |
 
 ### Organizations
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Create organization | ✅ Done | Basic implementation |
+| Create organization | ✅ Done | Full CRUD |
 | Update organization | ✅ Done | Implemented |
-| Delete organization | 📋 To Do | Soft delete |
-| Add members | 📋 To Do | Invite by email |
-| Change member roles | 📋 To Do | Admin/member |
-| Remove members | 📋 To Do | Soft delete |
-| Organization followers | 📋 To Do | Follow/unfollow |
+| Delete organization | ✅ Done | Soft delete |
+| Add members | ✅ Done | addOrganizationMember |
+| Change member roles | ✅ Done | updateMemberRole |
+| Remove members | ✅ Done | Soft delete |
+| Organization followers | ✅ Done | Follow/unfollow |
 | Invite members | 📋 To Do | Email invitations |
 
 ### Events
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Create event | ✅ Done | Basic CRUD |
+| Create event | ✅ Done | Full CRUD |
 | Update event | ✅ Done | Implemented |
-| Delete event | 📋 To Do | Draft only |
-| Publish event | 📋 To Do | Status change |
-| Cancel event | 📋 To Do | Status change |
+| Delete event | ✅ Done | Soft delete |
+| Publish event | ✅ Done | Status change via update |
+| Cancel event | ✅ Done | Status change via update |
 | Duplicate event | 📋 To Do | Copy event data |
 | Event types | ✅ Done | Enum defined |
 | Visibility controls | ✅ Done | Public/private |
@@ -59,45 +61,49 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Create ticket type | ✅ Done | Basic CRUD |
+| Create ticket type | ✅ Done | Full CRUD |
 | Update ticket | ✅ Done | Implemented |
 | Set pricing | ✅ Done | price, currency |
 | Inventory | ✅ Done | quantity tracking |
 | Sale windows | ✅ Done | sale_start, sale_end |
 | Order limits | ✅ Done | min/max per order |
-| Deactivate ticket | 📋 To Do | is_active toggle |
+| Deactivate ticket | ✅ Done | is_active toggle |
 
 ### Orders
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Create order | 📋 To Do | With items |
-| View order | 📋 To Do | Order details |
-| Order expiry | 📋 To Do | 15 min timer |
-| Cancel order | 📋 To Do | Release tickets |
-| Guest checkout | 📋 To Do | No auth required |
+| Create order | ✅ Done | With items, ticket reservation |
+| View order | ✅ Done | By ID, number, event, email |
+| Order expiry | ✅ Done | Background task every 60s |
+| Cancel order | ✅ Done | Release tickets |
+| Confirm order | ✅ Done | Mark paid/confirmed |
+| Guest checkout | ✅ Done | No auth required |
 
 ### Payments
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Stripe integration | 📋 To Do | Payment intents |
-| Razorpay integration | 📋 To Do | Payment intents |
-| Webhook handling | 📋 To Do | Confirm payment |
-| Refund processing | 📋 To Do | Full/partial |
-| Payment status | 📋 To Do | Track status |
+| Payment model | ✅ Done | Full Payment model |
+| Payment queries | ✅ Done | By ID, provider_id, order |
+| Create payment | ✅ Done | Initiated by frontend |
+| Webhook handling | ✅ Done | Stripe + Razorpay webhooks |
+| Payment status updates | ✅ Done | success/failed/refunded |
+| Refund processing | ✅ Done | Full/partial refund |
+| Stripe integration | 📋 To Do | Frontend SDK only |
+| Razorpay integration | 📋 To Do | Frontend SDK only |
 
 ### Attendees
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| View attendees | 📋 To Do | List + filters |
-| Search | 📋 To Do | By name/email |
-| Export | 📋 To Do | CSV export |
-| Check-in | 📋 To Do | Status update |
+| View attendees | ✅ Done | List + filters |
+| Search | ✅ Done | By name/email |
+| Check-in | ✅ Done | Status update (bool) |
+| Undo check-in | ✅ Done | Reset status |
+| Notes | ✅ Done | Add/update notes |
 | QR check-in | 📋 To Do | Scan QR code |
-| Undo check-in | 📋 To Do | Reset status |
-| Notes | 📋 To Do | Add notes |
+| Export | 📋 To Do | CSV export |
 
 ### Analytics
 
@@ -109,12 +115,12 @@
 | Attendance rates | 📋 To Do | Check-in % |
 | Export reports | 📋 To Do | CSV/Excel |
 
-### Background Tasks (Celery)
+### Background Tasks
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Order expiry | 📋 To Do | Release tickets |
-| Payment webhook | 📋 To Do | Process async |
+| Order expiry | ✅ Done | asyncio task every 60s |
+| Token cleanup | ✅ Done | asyncio task every 1hr |
 | PDF generation | 📋 To Do | Tickets w/ QR |
 | Email sending | 📋 To Do | Queue emails |
 | Event reminders | 📋 To Do | 24hr before |
@@ -222,24 +228,24 @@
 
 ### Implemented Models
 
-- ✅ User
+- ✅ User (with role + is_superuser)
 - ✅ Organization
-- ✅ Member (basic)
-- ✅ Event (basic)
-- ✅ Ticket (basic)
+- ✅ Member
+- ✅ Event
+- ✅ Ticket
+- ✅ Order
+- ✅ OrderItem
+- ✅ Attendee
+- ✅ Payment
+- ✅ RefreshToken
+- ✅ AuditLog
+- ✅ EmailLog
+- ✅ Follower
+- ✅ EventStaff
 
 ### To Be Implemented
 
-- 📋 Follower
 - 📋 Invitation
-- 📋 EventStaff
-- 📋 Order
-- 📋 OrderItem
-- 📋 Attendee
-- 📋 Payment
-- 📋 RefreshToken
-- 📋 AuditLog
-- 📋 EmailLog
 - 📋 Notification
 
 ---
@@ -248,32 +254,35 @@
 
 ### Immediate (This Week)
 
-1. 🔄 Complete order + payment flow
-2. 🔄 Implement attendee CRUD
-3. 🔄 Create attendee list page
-4. 📋 Start page builder components
+1. ✅ Complete order + payment flow
+2. ✅ Implement attendee CRUD
+3. ✅ Auth system (JWT + RBAC)
+4. ✅ Background tasks (order expiry)
+5. 📋 Start frontend integration
 
 ### Next (This Month)
 
-5. 📋 Check-in system
-6. 📋 Email campaigns
-7. 📋 Analytics dashboard
+6. 📋 Frontend auth pages (login/register)
+7. 📋 Organization + event management UI
+8. 📋 Checkout flow (Stripe/Razorpay SDKs)
+9. 📋 Check-in system
 
 ### Later (This Quarter)
 
-8. 📋 Advanced page builder
-9. 📋 Notifications system
-10. 📋 Performance optimization
+10. 📋 Page builder
+11. 📋 Email campaigns
+12. 📋 Analytics dashboard
+13. 📋 Notifications system
 
 ---
 
 ## Notes
 
-- Backend uses GraphQL (Strawberry)
+- Backend uses GraphQL (Strawberry) + FastAPI
 - Frontend uses Svelte + TypeScript
 - Database: PostgreSQL
-- Task queue: Celery for async tasks
-- Payments: Stripe + Razorpay
+- Background tasks: asyncio scheduler (no Celery/Redis needed)
+- Payments: Stripe + Razorpay (frontend SDKs + backend webhooks)
 
 ---
 
