@@ -185,7 +185,10 @@ async def seed():
                     # If event is published, create some orders
                     if status == "published":
                         for _ in range(random.randint(3, 8)):
-                            order_qty = random.randint(1, 3)
+                            max_qty = min(3, ticket.quantity - ticket.sold_quantity)
+                            if max_qty <= 0:
+                                break
+                            order_qty = random.randint(1, max_qty)
                             customer_name = fake.name()
                             customer_email = fake.email()
                             unit_price = float(tc["price"])

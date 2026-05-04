@@ -28,7 +28,13 @@ class Member(MemberBase, table=True):
     created_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
 
     # Relationships
-    user: "User" = Relationship(back_populates="members")
+    user: "User" = Relationship(
+        back_populates="members",
+        sa_relationship_kwargs={
+            "primaryjoin": "foreign(Member.user_id) == User.id",
+            "viewonly": False,
+        },
+    )
     organization: "Organization" = Relationship(back_populates="members")
     event_staff_assignments: list["EventStaff"] = Relationship(back_populates="member")
 

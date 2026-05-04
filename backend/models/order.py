@@ -44,9 +44,10 @@ class Order(OrderBase, table=True):
 
     # Relationships
     event: "Event" = Relationship(back_populates="orders")
+    creator: Optional["User"] = Relationship(back_populates="orders")
     items: list["OrderItem"] = Relationship(back_populates="order", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     payments: list["Payment"] = Relationship(back_populates="order", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
-    attendees: list["Attendee"] = Relationship(back_populates="order", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+
 
     def __repr__(self) -> str:
         return f"<Order {self.order_number}>"

@@ -42,7 +42,13 @@ class User(UserBase, table=True):
     created_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
 
     # Relationships
-    members: list["Member"] = Relationship(back_populates="user", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    members: list["Member"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan",
+            "primaryjoin": "User.id == foreign(Member.user_id)",
+        },
+    )
     followers: list["Follower"] = Relationship(back_populates="user", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     orders: list["Order"] = Relationship(back_populates="creator", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     audit_logs: list["AuditLog"] = Relationship(back_populates="user")
