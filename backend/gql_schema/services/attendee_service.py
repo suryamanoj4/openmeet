@@ -32,7 +32,7 @@ class AttendeeService(BaseService[Attendee]):
     async def get_by_ticket(
         self,
         ticket_id: UUID,
-        check_in_status: Optional[str] = None,
+        check_in_status: Optional[bool] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> List[Attendee]:
@@ -40,7 +40,7 @@ class AttendeeService(BaseService[Attendee]):
             Attendee.ticket_id == ticket_id,
             Attendee.is_active == True,
         )
-        if check_in_status:
+        if check_in_status is not None:
             query = query.where(Attendee.check_in_status == check_in_status)
         result = await self.session.exec(query.offset(skip).limit(limit))
         return list(result.all())
@@ -79,10 +79,10 @@ class AttendeeService(BaseService[Attendee]):
         if not attendee:
             raise ValueError("Attendee not found")
 
-        if attendee.check_in_status == "checked_in":
+        if attendee.check_in_status:
             raise ValueError("Already checked in")
 
-        attendee.check_in_status = "checked_in"
+        attendee.check_in_status = True
         attendee.check_in_at = datetime.utcnow()
         attendee.check_in_by = checked_in_by
         await self.session.flush()
@@ -95,7 +95,7 @@ class AttendeeService(BaseService[Attendee]):
         if not attendee:
             raise ValueError("Attendee not found")
 
-        attendee.check_in_status = "not_checked_in"
+        attendee.check_in_status = False
         attendee.check_in_at = None
         attendee.check_in_by = None
         await self.session.flush()
@@ -127,7 +127,7 @@ class AttendeeService(BaseService[Attendee]):
         )
         attendees = list(result.all())
         total = len(attendees)
-        checked_in = sum(1 for a in attendees if a.check_in_status == "checked_in")
+        checked_in = sum(1 for a in attendees if a.check_in_status)
 
         return {
             "total": total,

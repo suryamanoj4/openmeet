@@ -21,7 +21,7 @@ class AttendeeBase(SQLModel):
     company: Optional[str] = Field(default=None, max_length=255)
     job_title: Optional[str] = Field(default=None, max_length=100)
     custom_data: dict = Field(default_factory=dict, sa_column=Column(JSONB))
-    check_in_status: str = Field(default="not_checked_in", max_length=50)
+    check_in_status: bool = Field(default=False)
     check_in_at: Optional[datetime] = Field(default=None)
     check_in_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
     notes: Optional[str] = Field(default=None)
