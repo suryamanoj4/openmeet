@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 from functools import wraps
 from typing import Optional
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.hash import bcrypt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -16,11 +16,11 @@ from models import RefreshToken, User
 
 
 def hash_password(password: str) -> str:
-    return bcrypt.hash(password)
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    return bcrypt.verify(password, password_hash)
+    return bcrypt.checkpw(password.encode(), password_hash.encode())
 
 
 def create_access_token(user_id: uuid.UUID, role: str, is_superuser: bool) -> str:
