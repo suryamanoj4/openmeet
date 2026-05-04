@@ -38,6 +38,26 @@ services:
     networks:
       - openmeet
 
+  seed:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: openmeet-seed
+    profiles: ["seed"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    command: uv run python seed.py
+    restart: "no"
+    networks:
+      - openmeet
+
   backend:
     build:
       context: ./backend
