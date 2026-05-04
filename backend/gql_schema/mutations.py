@@ -18,6 +18,7 @@ from auth import (
     revoke_refresh_token,
     revoke_all_user_tokens,
 )
+from payment_provider import get_provider
 from gql_schema.types import (
     UserType,
     OrganizationType,
@@ -28,6 +29,7 @@ from gql_schema.types import (
     PaymentType,
 )
 from gql_schema.types.auth import AuthPayload, RefreshPayload
+from gql_schema.types.payment_provider import PaymentOrderPayload, PaymentVerificationResult
 from gql_schema.inputs import (
     CreateUserInput,
     UpdateUserInput,
@@ -669,3 +671,104 @@ class Mutation:
         except ValueError:
             await session.rollback()
             return None
+
+    # ----- Payment provider mutations -----
+
+    @strawberry.mutation
+    async def create_payment_order(
+        self,
+        info: Info,
+        order_id: UUID,
+        provider: str = "razorpay",
+    ) -> PaymentOrderPayload:
+        session = get_session(info)
+        service = OrderService(session)
+
+        order = await service.get_by_id(order_id)
+        if not order:
+            raise ValueError("Order not found")
+
+        if order.payment_status != "unpaid":
+            raise ValueError("Order already has a payment")
+
+        payment_provider = get_provider(provider)
+        amount_subunits = int(order.total_amount * 100)
+
+        provider_order = await payment_provider.create_order(
+            amount=amount_subunits,
+            currency=order.currency,
+            receipt=order.order_number,
+            notes={"order_id": str(order.id), "order_number": order.order_number},
+        )
+
+        payment_service = PaymentService(session)
+        await payment_service.create_payment(
+            order_id=order.id,
+            provider=provider,
+            provider_payment_id=provider_order["id"],
+            amount=float(order.total_amount),
+            currency=order.currency,
+        )
+        await session.commit()
+
+        return PaymentOrderPayload(
+            provider_order_id=provider_order["id"],
+            provider_key_id=payment_provider.public_key or "",
+            order_id=order.id,
+            order_number=order.order_number,
+            amount=amount_subunits,
+            currency=order.currency,
+        )
+
+    @strawberry.mutation
+    async def verify_payment(
+        self,
+        info: Info,
+        order_id: UUID,
+        provider_payment_id: str,
+        provider_order_id: str,
+        signature: str,
+        provider: str = "razorpay",
+    ) -> PaymentVerificationResult:
+        session = get_session(info)
+        service = PaymentService(session)
+        payment_provider = get_provider(provider)
+
+        is_valid = payment_provider.verify_signature(
+            provider_order_id=provider_order_id,
+            payment_id=provider_payment_id,
+            signature=signature,
+        )
+
+        if not is_valid:
+            return PaymentVerificationResult(
+                success=False,
+                order_id=order_id,
+                payment_status="unpaid",
+                message="Invalid payment signature",
+            )
+
+        payment = await service.get_by_provider_payment_id(provider_order_id)
+        if not payment:
+            return PaymentVerificationResult(
+                success=False,
+                order_id=order_id,
+                payment_status="unpaid",
+                message="Payment record not found",
+            )
+
+        payment = await service.mark_payment_success(
+            provider_payment_id=provider_order_id,
+            extra_data={
+                "provider_payment_id": provider_payment_id,
+                "verified_via": "checkout_callback",
+            },
+        )
+        await session.commit()
+
+        return PaymentVerificationResult(
+            success=True,
+            order_id=order_id,
+            payment_status=payment.status,
+            message="Payment verified",
+        )

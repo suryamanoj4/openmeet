@@ -8,10 +8,10 @@ from fastapi import FastAPI, HTTPException, Request
 from strawberry.fastapi import GraphQLRouter
 
 from auth import get_auth_context
-from config import settings
 from database import AsyncSessionLocal, async_engine
 from gql_schema import schema
 from gql_schema.services.payment_service import PaymentService
+from payment_provider import get_provider
 from tasks import scheduler
 
 logger = logging.getLogger("openmeets")
@@ -74,87 +74,72 @@ async def health():
     return {"status": "healthy"}
 
 
-# ---------- Payment webhook endpoints ----------
+# ---------- Payment webhook ----------
 
 
-async def _handle_webhook_event(
-    provider: str,
+async def _process_webhook(
+    provider_name: str,
     event_type: str,
-    provider_payment_id: str,
-    extra: Optional[dict] = None,
+    provider_order_id: str,
     failure_reason: Optional[str] = None,
+    extra: Optional[dict] = None,
 ):
     session = AsyncSessionLocal()
     try:
         service = PaymentService(session)
 
-        if event_type in ("payment_intent.succeeded", "payment.captured", "order.paid"):
-            await service.mark_payment_success(provider_payment_id, extra_data=extra)
-        elif event_type in ("payment_intent.payment_failed", "payment.failed"):
-            await service.mark_payment_failed(provider_payment_id, failure_reason=failure_reason, extra_data=extra)
+        if event_type in ("payment.captured", "order.paid"):
+            await service.mark_payment_success(provider_order_id, extra_data=extra)
+        elif event_type == "payment.failed":
+            await service.mark_payment_failed(
+                provider_order_id, failure_reason=failure_reason, extra_data=extra
+            )
         else:
-            logger.warning(f"Unhandled webhook event type: {event_type} from {provider}")
+            logger.warning(f"Unhandled webhook event: {event_type}")
 
         await session.commit()
-    except Exception as e:
+    except Exception:
         await session.rollback()
-        logger.error(f"Webhook processing error: {e}")
-        raise
+        logger.exception("Webhook processing error")
     finally:
         await session.close()
 
 
-@app.post("/webhooks/stripe")
-async def stripe_webhook(request: Request):
-    """Handle Stripe webhook events."""
-    payload = await request.json()
-    event_type = payload.get("type", "")
-
-    data = payload.get("data", {}).get("object", {})
-    provider_payment_id = data.get("id", "")
-    amount = data.get("amount", 0)
-    currency = data.get("currency", "usd")
-
-    logger.info(f"Stripe webhook: {event_type} payment={provider_payment_id}")
-
-    await _handle_webhook_event(
-        provider="stripe",
-        event_type=event_type,
-        provider_payment_id=provider_payment_id,
-        extra={"stripe_event": payload},
-    )
-    return {"status": "ok"}
-
-
 @app.post("/webhooks/razorpay")
-async def razorpay_webhook(request: Request):
-    """Handle Razorpay webhook events."""
+async def payment_webhook(request: Request):
+    """Handle payment provider webhook events."""
+    raw_body = await request.body()
+    signature = request.headers.get("X-Razorpay-Signature", "")
+
+    provider = get_provider("razorpay")
+    if not provider.verify_webhook(raw_body, signature):
+        logger.warning("Webhook signature verification failed")
+        raise HTTPException(status_code=400, detail="Invalid signature")
+
     payload = await request.json()
     event_type = payload.get("event", "")
+    entity = payload.get("payload", {})
 
-    payment_data = payload.get("payload", {}).get("payment", {}).get("entity", {})
-    provider_payment_id = payment_data.get("id", "")
-    amount = payment_data.get("amount", 0)
-    currency = payment_data.get("currency", "INR")
+    provider_order_id = ""
+    failure_reason = None
 
-    # Map Razorpay event names
-    event_map = {
-        "payment.captured": "payment.captured",
-        "payment.failed": "payment.failed",
-        "order.paid": "order.paid",
-    }
-    mapped_event = event_map.get(event_type, event_type)
+    if "payment" in entity:
+        payment_entity = entity["payment"]["entity"]
+        provider_order_id = payment_entity.get("order_id", "")
+        if event_type == "payment.failed":
+            failure_reason = payment_entity.get("error_description")
+    elif "order" in entity:
+        order_entity = entity["order"]["entity"]
+        provider_order_id = order_entity.get("id", "")
 
-    logger.info(f"Razorpay webhook: {event_type} payment={provider_payment_id}")
+    logger.info(f"Webhook: {event_type} order={provider_order_id}")
 
-    failure_reason = payment_data.get("error_description") if event_type == "payment.failed" else None
-
-    await _handle_webhook_event(
-        provider="razorpay",
-        event_type=mapped_event,
-        provider_payment_id=provider_payment_id,
-        extra={"razorpay_event": payload},
+    await _process_webhook(
+        provider_name="razorpay",
+        event_type=event_type,
+        provider_order_id=provider_order_id,
         failure_reason=failure_reason,
+        extra={"webhook_payload": payload},
     )
     return {"status": "ok"}
 

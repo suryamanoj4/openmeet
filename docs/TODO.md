@@ -187,8 +187,71 @@
 |------|--------|-------|
 | Ticket selection | 📋 To Do | Choose tickets |
 | Attendee details | 📋 To Do | Per ticket |
-| Payment form | 📋 To Do | Stripe/Razorpay |
+| Payment integration | 📋 To Do | See integration steps below |
 | Confirmation | 📋 To Do | Success page |
+
+### Payment Integration Steps (Frontend)
+
+1. **Load Razorpay Checkout SDK** in `<script>` tag:
+   ```html
+   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+   ```
+
+2. **Create payment order** on checkout submit:
+   ```graphql
+   mutation {
+     createPaymentOrder(orderId: "...", provider: "razorpay") {
+       providerOrderId   # razorpay_order_id
+       providerKeyId     # RAZORPAY_KEY_ID
+       orderId
+       orderNumber
+       amount            # in paise
+       currency
+     }
+   }
+   ```
+
+3. **Open Razorpay Checkout modal** with the response:
+   ```ts
+   const rzp = new Razorpay({
+     key: data.createPaymentOrder.providerKeyId,
+     order_id: data.createPaymentOrder.providerOrderId,
+     amount: data.createPaymentOrder.amount,
+     currency: data.createPaymentOrder.currency,
+     name: "OpenMeets",
+     prefill: { email: customerEmail, name: customerName },
+     handler: async (response) => {
+       // Step 4 — verify on backend
+     }
+   });
+   rzp.open();
+   ```
+
+4. **Verify payment** in the `handler` callback:
+   ```graphql
+   mutation {
+     verifyPayment(
+       orderId: "..."
+       providerPaymentId: response.razorpay_payment_id
+       providerOrderId: response.razorpay_order_id
+       signature: response.razorpay_signature
+       provider: "razorpay"
+     ) {
+       success
+       paymentStatus
+       message
+     }
+   }
+   ```
+
+5. **On success** (`verifyPayment.success === true`):
+   - Show confirmation page
+   - Redirect to order confirmation
+
+6. **Edge cases**:
+   - Payment modal dismissed → keep order in pending state (auto-expires in 15min)
+   - Network failure during verification → retry verifyPayment with same signature
+   - Webhook handles missed callbacks as backup (backend `POST /webhooks/razorpay`)
 
 ### Attendee Management
 
