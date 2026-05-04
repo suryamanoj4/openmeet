@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     from_email: str | None = None
     from_name: str = "OpenMeets"
 
+    # Razorpay
+    razorpay_key_id: str | None = None
+    razorpay_key_secret: str | None = None
+    razorpay_webhook_secret: str | None = None
+
     # Email (SendGrid API - optional, overrides SMTP)
     sendgrid_api_key: str | None = None
 
