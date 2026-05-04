@@ -1,0 +1,38 @@
+FROM oven/bun:1-alpine AS builder
+
+WORKDIR /app
+
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+
+RUN bun add -D @sveltejs/adapter-node
+
+COPY . .
+
+RUN echo "import adapter from '@sveltejs/adapter-node'; \
+const config = { \
+  kit: { adapter: adapter() }, \
+  vitePlugin: { \
+    dynamicCompileOptions: ({ filename }) => \
+      filename.includes('node_modules') ? undefined : { runes: true } \
+  } \
+}; \
+export default config;" > svelte.config.js
+
+RUN bun run build
+
+
+FROM oven/bun:1-alpine AS runner
+
+WORKDIR /app
+
+COPY --from=builder /app/build ./build
+COPY --from=builder /app/package.json /app/bun.lock ./
+
+RUN bun install --frozen-lockfile --production && bun add @sveltejs/adapter-node
+
+ENV HOST=0.0.0.0
+ENV PORT=3000
+EXPOSE 3000
+
+CMD ["bun", "./build/index.js"]
