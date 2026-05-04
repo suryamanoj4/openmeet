@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install UV package manager
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
+ENV PATH="/root/.local/bin:$PATH"
+
 # Copy uv lock files first for better caching
 COPY pyproject.toml uv.lock ./
 
@@ -19,10 +21,9 @@ RUN uv sync --frozen --no-dev
 # Copy application code
 COPY . .
 
-# Set environment variables
+# Set remaining environment variables
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/root/.local/bin:$PATH"
+    PYTHONDONTWRITEBYTECODE=1
 
 # Expose port
 EXPOSE 8000
