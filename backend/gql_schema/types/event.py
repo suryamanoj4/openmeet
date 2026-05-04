@@ -20,7 +20,7 @@ class EventType:
     end_date: datetime
     timezone: str
     venue_name: Optional[str]
-    venue_address: Optional[str]
+    venue_address: Optional[JSON]
     venue_city: Optional[str]
     venue_country: Optional[str]
     is_online: bool

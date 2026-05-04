@@ -15,8 +15,12 @@ class AttendeeType:
     last_name: str
     email: str
     phone: Optional[str]
-    custom_data: Optional[JSON]
-    check_in_status: bool
-    checked_in_at: Optional[datetime]
+    company: Optional[str]
+    job_title: Optional[str]
+    custom_data: JSON
+    check_in_status: str
+    check_in_at: Optional[datetime]
+    check_in_by: Optional[uuid.UUID]
+    notes: Optional[str]
     created_at: datetime
     updated_at: datetime

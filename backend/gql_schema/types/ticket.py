@@ -19,6 +19,7 @@ class TicketType:
     max_per_order: int
     sale_start: Optional[datetime]
     sale_end: Optional[datetime]
+    sort_order: int
     is_active: bool
     created_at: datetime
     updated_at: datetime
