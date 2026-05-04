@@ -9,6 +9,6 @@
 	let { class: className, children }: Props = $props();
 </script>
 
-<p class={cn('text-sm text-muted-foreground', className)}>
+<p class={cn('text-body-md text-on-surface-variant', className)}>
 	{@render children?.()}
 </p>
