@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { ambientAuth } from '$lib/ambient-auth.svelte';
-	import { authStore } from '$lib/stores/auth';
+	import { authStore, isAuthenticated, currentUser } from '$lib/stores/auth';
 	import { getMe } from '$lib/services/auth';
 	import Button from '$lib/components/ui/button.svelte';
 	import AuthSlideOver from '$lib/components/auth/auth-slide-over.svelte';
@@ -78,16 +78,14 @@
 				</div>
 
 				<div class="hidden sm:flex items-center gap-2">
-					{#if ambientAuth.isAuthenticated}
-						<div class="flex items-center gap-2">
-							<a href="/dashboard" class="text-label-md text-on-surface-variant hover:text-fg transition-colors px-3 py-2">
-								Dashboard
-							</a>
-							<span class="text-body-md text-on-surface-variant">{ambientAuth.user?.first_name}</span>
-							<Button variant="ghost" size="sm" onclick={() => ambientAuth.logout()}>
-								Sign out
-							</Button>
-						</div>
+					{#if $isAuthenticated}
+						<a
+							href="/dashboard"
+							class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-on-primary text-label-sm font-bold hover:bg-primary-container hover:text-on-primary-container transition-colors"
+							title="Dashboard"
+						>
+							{($currentUser?.first_name?.[0] ?? 'U').toUpperCase()}
+						</a>
 					{:else}
 						<Button variant="ghost" size="sm" onclick={handleLogin}>
 							Sign In
@@ -118,12 +116,12 @@
 				<a href="/" class="block px-3 py-2 text-label-md text-on-surface-variant hover:text-fg rounded-lg hover:bg-surface-container-low">Calendar</a>
 				<a href="/" class="block px-3 py-2 text-label-md text-on-surface-variant hover:text-fg rounded-lg hover:bg-surface-container-low">Venues</a>
 				<hr class="border-outline-variant/60 my-2" />
-				{#if ambientAuth.isAuthenticated}
-					<a href="/dashboard" class="block px-3 py-2 text-label-md text-on-surface-variant hover:text-fg">Dashboard</a>
-					<button class="block w-full text-left px-3 py-2 text-label-md text-on-surface-variant hover:text-fg" onclick={() => ambientAuth.logout()}>Sign out</button>
+				{#if $isAuthenticated}
+					<a href="/dashboard" class="block px-3 py-2 text-label-md text-on-surface-variant hover:text-fg rounded-lg hover:bg-surface-container-low">Dashboard</a>
+					<button class="block w-full text-left px-3 py-2 text-label-md text-on-surface-variant hover:text-fg rounded-lg hover:bg-surface-container-low" onclick={() => ambientAuth.logout()}>Sign out</button>
 				{:else}
-					<button class="block w-full text-left px-3 py-2 text-label-md text-primary font-semibold" onclick={handleLogin}>Sign In</button>
-					<button class="block w-full text-left px-3 py-2 text-label-md text-primary font-semibold" onclick={() => goto('/register')}>Sign Up</button>
+					<button class="block w-full text-left px-3 py-2 text-label-md text-primary font-semibold rounded-lg hover:bg-surface-container-low" onclick={handleLogin}>Sign In</button>
+					<button class="block w-full text-left px-3 py-2 text-label-md text-primary font-semibold rounded-lg hover:bg-surface-container-low" onclick={() => goto('/register')}>Sign Up</button>
 				{/if}
 			</div>
 		{/if}
