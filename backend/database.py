@@ -1,7 +1,8 @@
 """Database connection and session management."""
 
 from sqlmodel import SQLModel, create_engine, Session
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from config import settings
 

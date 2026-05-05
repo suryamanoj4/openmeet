@@ -5,7 +5,7 @@ from typing import Optional, List
 from uuid import UUID
 
 from sqlmodel import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from gql_schema.services.base import BaseService
 from models import User, Member, Follower

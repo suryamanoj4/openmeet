@@ -6,7 +6,7 @@ from uuid import UUID
 import strawberry
 from strawberry import Info
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from auth import (
     hash_password,

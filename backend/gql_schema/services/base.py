@@ -4,7 +4,7 @@ from typing import Generic, TypeVar, Type, Optional, List
 from uuid import UUID
 
 from sqlmodel import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 ModelType = TypeVar("ModelType")
 
