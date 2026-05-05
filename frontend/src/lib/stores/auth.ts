@@ -24,9 +24,6 @@ function createAuthStore() {
 	return {
 		subscribe,
 
-		/**
-		 * Set the current user
-		 */
 		setUser(user: User | null) {
 			update((state) => ({
 				...state,
@@ -36,9 +33,6 @@ function createAuthStore() {
 			}));
 		},
 
-		/**
-		 * Set auth tokens and persist to localStorage
-		 */
 		setTokens(accessToken: string, refreshToken: string) {
 			if (browser) {
 				localStorage.setItem('access_token', accessToken);
@@ -47,16 +41,10 @@ function createAuthStore() {
 			update((state) => ({ ...state, accessToken, refreshToken }));
 		},
 
-		/**
-		 * Set loading state
-		 */
 		setLoading(loading: boolean) {
 			update((state) => ({ ...state, isLoading: loading }));
 		},
 
-		/**
-		 * Clear auth state and remove tokens from localStorage
-		 */
 		logout() {
 			if (browser) {
 				localStorage.removeItem('access_token');
@@ -65,9 +53,6 @@ function createAuthStore() {
 			set(initialState);
 		},
 
-		/**
-		 * Load tokens from localStorage on app init
-		 */
 		loadFromStorage(): { accessToken: string | null; refreshToken: string | null } {
 			if (!browser) {
 				return { accessToken: null, refreshToken: null };
@@ -84,15 +69,12 @@ function createAuthStore() {
 					isLoading: false
 				}));
 			} else {
-				set(initialState);
+				set({ ...initialState, isLoading: false });
 			}
 
 			return { accessToken, refreshToken };
 		},
 
-		/**
-		 * Update tokens without persisting (for token refresh)
-		 */
 		updateTokens(accessToken: string, refreshToken: string) {
 			if (browser) {
 				localStorage.setItem('access_token', accessToken);
@@ -105,25 +87,16 @@ function createAuthStore() {
 
 export const authStore = createAuthStore();
 
-/**
- * Derived store to check if user is authenticated
- */
 export const isAuthenticated: Readable<boolean> = derived(
 	authStore,
 	($auth) => $auth.isAuthenticated
 );
 
-/**
- * Derived store to get the current user
- */
 export const currentUser: Readable<User | null> = derived(
 	authStore,
 	($auth) => $auth.user
 );
 
-/**
- * Derived store to check if auth is still loading
- */
 export const authLoading: Readable<boolean> = derived(
 	authStore,
 	($auth) => $auth.isLoading
