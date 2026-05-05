@@ -1,99 +1,57 @@
-// GraphQL queries for authentication and user data
-import { gql } from '@urql/svelte';
-
-export const GET_ME = gql`
+export const GET_ME = `
 	query GetMe {
 		me {
 			id
 			email
-			first_name
-			last_name
+			first_name: firstName
+			last_name: lastName
 			phone
-			avatar_url
-			is_email_verified
-			created_at
-			updated_at
+			avatar_url: avatarUrl
+			is_email_verified: isEmailVerified
+			role
+			is_superuser: isSuperuser
+			created_at: createdAt
+			updated_at: updatedAt
 		}
 	}
 `;
 
-export const LOGIN = gql`
-	mutation Login($email: String!, $password: String!) {
-		login(email: $email, password: $password) {
-			user {
-				id
-				email
-				first_name
-				last_name
-				avatar_url
-				is_email_verified
-			}
-			access_token
-			refresh_token
+export const LOGIN = `
+	mutation Login($input: LoginInput!) {
+		login(input: $input) {
+			access_token: accessToken
+			refresh_token: refreshToken
+			user_id: userId
+			email
+			role
+			is_superuser: isSuperuser
 		}
 	}
 `;
 
-export const REGISTER = gql`
+export const REGISTER = `
 	mutation Register($input: RegisterInput!) {
 		register(input: $input) {
-			user {
-				id
-				email
-				first_name
-				last_name
-				avatar_url
-				is_email_verified
-			}
-			access_token
-			refresh_token
+			access_token: accessToken
+			refresh_token: refreshToken
+			user_id: userId
+			email
+			role
+			is_superuser: isSuperuser
 		}
 	}
 `;
 
-export const REFRESH_TOKEN = gql`
+export const REFRESH_TOKEN = `
 	mutation RefreshToken($refresh_token: String!) {
 		refreshToken(refresh_token: $refresh_token) {
-			access_token
-			refresh_token
+			access_token: accessToken
 		}
 	}
 `;
 
-export const LOGOUT = gql`
-	mutation Logout {
-		logout
-	}
-`;
-
-export const REQUEST_PASSWORD_RESET = gql`
-	mutation RequestPasswordReset($email: String!) {
-		requestPasswordReset(email: $email)
-	}
-`;
-
-export const RESET_PASSWORD = gql`
-	mutation ResetPassword($token: String!, $new_password: String!) {
-		resetPassword(token: $token, new_password: $new_password)
-	}
-`;
-
-export const UPDATE_PROFILE = gql`
-	mutation UpdateProfile($input: ProfileInput!) {
-		updateProfile(input: $input) {
-			id
-			email
-			first_name
-			last_name
-			phone
-			avatar_url
-			is_email_verified
-		}
-	}
-`;
-
-export const CHANGE_PASSWORD = gql`
-	mutation ChangePassword($current_password: String!, $new_password: String!) {
-		changePassword(current_password: $current_password, new_password: $new_password)
+export const LOGOUT = `
+	mutation Logout($refresh_token: String!) {
+		logout(refresh_token: $refresh_token)
 	}
 `;

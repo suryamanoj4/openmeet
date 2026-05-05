@@ -1,13 +1,13 @@
-// GraphQL type definitions matching the backend schema
-
 export interface User {
 	id: string;
 	email: string;
-	first_name: string;
-	last_name: string;
+	first_name?: string;
+	last_name?: string;
 	phone?: string;
 	avatar_url?: string;
 	is_email_verified: boolean;
+	role: string;
+	is_superuser: boolean;
 	created_at: string;
 	updated_at: string;
 }
@@ -44,8 +44,8 @@ export interface Event {
 	slug: string;
 	description?: string;
 	event_type: string;
-	status: 'draft' | 'published' | 'cancelled' | 'completed';
-	visibility: 'public' | 'private' | 'unlisted';
+	status: string;
+	visibility: string;
 	start_date: string;
 	end_date: string;
 	timezone: string;
@@ -89,7 +89,7 @@ export interface Order {
 	id: string;
 	event_id: string;
 	order_number: string;
-	status: 'pending' | 'confirmed' | 'cancelled' | 'expired' | 'refunded';
+	status: string;
 	customer_email: string;
 	customer_first_name?: string;
 	customer_last_name?: string;
@@ -99,7 +99,7 @@ export interface Order {
 	discount_amount: number;
 	total: number;
 	currency: string;
-	payment_status: 'unpaid' | 'paid' | 'partial' | 'refunded';
+	payment_status: string;
 	notes?: string;
 	created_at: string;
 	updated_at: string;
@@ -116,7 +116,7 @@ export interface Attendee {
 	company?: string;
 	job_title?: string;
 	custom_data?: Record<string, unknown>;
-	check_in_status: 'not_checked_in' | 'checked_in' | 'cancelled';
+	check_in_status: string;
 	check_in_at?: string;
 	check_in_by?: string;
 	notes?: string;
@@ -125,26 +125,17 @@ export interface Attendee {
 	updated_at: string;
 }
 
-// Auth-related types
-export interface LoginInput {
-	email: string;
-	password: string;
-}
-
-export interface RegisterInput {
-	email: string;
-	password: string;
-	first_name: string;
-	last_name: string;
-}
-
-export interface AuthTokens {
+export interface AuthPayload {
 	access_token: string;
 	refresh_token: string;
+	token_type: string;
+	user_id: string;
+	email: string;
+	role: string;
+	is_superuser: boolean;
 }
 
-export interface AuthResponse {
-	user: User;
+export interface RefreshPayload {
 	access_token: string;
-	refresh_token: string;
+	token_type: string;
 }

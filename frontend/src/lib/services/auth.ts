@@ -1,49 +1,28 @@
 import { graphqlClient } from '$lib/graphql/client';
 import { authStore } from '$lib/stores/auth';
-import type { LoginInput, RegisterInput, AuthResponse } from '$lib/graphql/types';
+import { LOGIN, REGISTER, LOGOUT, REFRESH_TOKEN, GET_ME } from '$lib/graphql/queries/auth';
+import type { User } from '$lib/graphql/types';
 
-interface LoginMutation {
-	login: AuthResponse;
+interface MeResponse {
+	me: User | null;
 }
 
-interface RegisterMutation {
-	register: AuthResponse;
+interface RefreshTokenResponse {
+	refreshToken: { access_token: string };
 }
 
-interface RefreshTokenMutation {
-	refreshToken: {
-		access_token: string;
-		refresh_token: string;
-	};
-}
-
-interface LogoutMutation {
+interface LogoutResponse {
 	logout: boolean;
 }
 
 /**
  * Login user with email and password
  */
-export async function login(email: string, password: string): Promise<AuthResponse> {
+export async function login(email: string, password: string): Promise<User> {
 	const result = await graphqlClient
-		.mutation<LoginMutation, LoginInput>(
-			`
-			mutation Login($email: String!, $password: String!) {
-				login(email: $email, password: $password) {
-					user {
-						id
-						email
-						first_name
-						last_name
-						avatar_url
-						is_email_verified
-					}
-					access_token
-					refresh_token
-				}
-			}
-		`,
-			{ email, password }
+		.mutation<{ login: { access_token: string; refresh_token: string } }, { input: { email: string; password: string } }>(
+			LOGIN,
+			{ input: { email, password } }
 		)
 		.toPromise();
 
@@ -52,16 +31,21 @@ export async function login(email: string, password: string): Promise<AuthRespon
 	}
 
 	if (!result.data?.login) {
-		throw new Error('Login failed');
+		throw new Error('Invalid credentials');
 	}
 
-	const { user, access_token, refresh_token } = result.data.login;
+	const { access_token, refresh_token } = result.data.login;
 
-	// Store tokens and user
 	authStore.setTokens(access_token, refresh_token);
-	authStore.setUser(user);
 
-	return { user, access_token, refresh_token };
+	const user = await getMe();
+	if (!user) {
+		authStore.logout();
+		throw new Error('Failed to fetch user profile');
+	}
+
+	authStore.setUser(user);
+	return user;
 }
 
 /**
@@ -72,26 +56,14 @@ export async function register(
 	password: string,
 	first_name: string,
 	last_name: string
-): Promise<AuthResponse> {
+): Promise<User> {
 	const result = await graphqlClient
-		.mutation<RegisterMutation, { input: RegisterInput }>(
-			`
-			mutation Register($input: RegisterInput!) {
-				register(input: $input) {
-					user {
-						id
-						email
-						first_name
-						last_name
-						avatar_url
-						is_email_verified
-					}
-					access_token
-					refresh_token
-				}
-			}
-		`,
-			{ input: { email, password, first_name, last_name } }
+		.mutation<
+			{ register: { access_token: string; refresh_token: string } },
+			{ input: { email: string; password: string; firstName: string; lastName: string } }
+		>(
+			REGISTER,
+			{ input: { email, password, firstName: first_name, lastName: last_name } }
 		)
 		.toPromise();
 
@@ -103,56 +75,51 @@ export async function register(
 		throw new Error('Registration failed');
 	}
 
-	const { user, access_token, refresh_token } = result.data.register;
+	const { access_token, refresh_token } = result.data.register;
 
-	// Store tokens and user
 	authStore.setTokens(access_token, refresh_token);
-	authStore.setUser(user);
 
-	return { user, access_token, refresh_token };
+	const user = await getMe();
+	if (!user) {
+		authStore.logout();
+		throw new Error('Failed to fetch user profile');
+	}
+
+	authStore.setUser(user);
+	return user;
 }
 
 /**
  * Logout current user
  */
 export async function logout(): Promise<void> {
-	try {
-		await graphqlClient
-			.mutation<LogoutMutation, {}>(
-				`
-				mutation Logout {
-					logout
-				}
-			`,
-				{}
-			)
-			.toPromise();
-	} catch (error) {
-		// Ignore errors during logout, still clear local state
-		console.error('Logout error:', error);
-	} finally {
-		authStore.logout();
+	const stored = authStore.loadFromStorage();
+	const token = stored.refreshToken;
+
+	if (token) {
+		try {
+			await graphqlClient
+				.mutation<LogoutResponse, { refresh_token: string }>(
+					LOGOUT,
+					{ refresh_token: token }
+				)
+				.toPromise();
+		} catch {
+			// Ignore server errors during logout
+		}
 	}
+
+	authStore.logout();
 }
 
 /**
  * Refresh access token using refresh token
  */
-export async function refreshToken(refreshToken: string): Promise<{
-	access_token: string;
-	refresh_token: string;
-}> {
+export async function refreshToken(refresh_token: string): Promise<string> {
 	const result = await graphqlClient
-		.mutation<RefreshTokenMutation, { refresh_token: string }>(
-			`
-			mutation RefreshToken($refresh_token: String!) {
-				refreshToken(refresh_token: $refresh_token) {
-					access_token
-					refresh_token
-				}
-			}
-		`,
-			{ refresh_token: refreshToken }
+		.mutation<RefreshTokenResponse, { refresh_token: string }>(
+			REFRESH_TOKEN,
+			{ refresh_token }
 		)
 		.toPromise();
 
@@ -164,53 +131,15 @@ export async function refreshToken(refreshToken: string): Promise<{
 		throw new Error('Token refresh failed');
 	}
 
-	const { access_token, refresh_token } = result.data.refreshToken;
-
-	// Update tokens in store and localStorage
-	authStore.updateTokens(access_token, refresh_token);
-
-	return { access_token, refresh_token };
+	return result.data.refreshToken.access_token;
 }
 
 /**
  * Get current user profile
  */
-export async function getMe(): Promise<{
-	id: string;
-	email: string;
-	first_name: string;
-	last_name: string;
-	phone?: string;
-	avatar_url?: string;
-	is_email_verified: boolean;
-} | null> {
+export async function getMe(): Promise<User | null> {
 	const result = await graphqlClient
-		.query<{
-			me: {
-				id: string;
-				email: string;
-				first_name: string;
-				last_name: string;
-				phone?: string;
-				avatar_url?: string;
-				is_email_verified: boolean;
-			};
-		}>(
-			`
-			query GetMe {
-				me {
-					id
-					email
-					first_name
-					last_name
-					phone
-					avatar_url
-					is_email_verified
-				}
-			}
-		`,
-			{}
-		)
+		.query<MeResponse>(GET_ME, {})
 		.toPromise();
 
 	if (result.error || !result.data?.me) {
