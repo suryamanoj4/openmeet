@@ -6,7 +6,7 @@ export interface User {
 	phone?: string;
 	avatar_url?: string;
 	is_email_verified: boolean;
-	role: string;
+	role: 'user' | 'admin';
 	is_superuser: boolean;
 	created_at: string;
 	updated_at: string;
