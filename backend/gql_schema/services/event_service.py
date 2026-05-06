@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from auth import check_event_role
+from rbac import check_event_role
 from gql_schema.services.base import BaseService
 from models import Event, Ticket, EventStaff, Order, User
 

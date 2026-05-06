@@ -17,9 +17,8 @@ from auth import (
     verify_refresh_token,
     revoke_refresh_token,
     revoke_all_user_tokens,
-    require_auth,
-    check_event_role,
 )
+from rbac import require_auth, PermissionDenied
 from payment_provider import get_provider
 from gql_schema.types import (
     UserType,
@@ -199,7 +198,7 @@ class Mutation:
     ) -> bool:
         auth_user = get_auth_user(info)
         if not auth_user:
-            raise PermissionError("Authentication required")
+            raise PermissionDenied("Authentication required")
 
         session = get_session(info)
         await revoke_all_user_tokens(session, auth_user.user_id)
@@ -406,7 +405,7 @@ class Mutation:
             org_service = OrganizationService(session)
             member = await org_service.get_member(input.organization_id, auth_user.user_id)
             if not member or member.role not in ("admin",):
-                raise PermissionError("You must be an admin of the organization to create events under it")
+                raise PermissionDenied("You must be an admin of the organization to create events under it")
 
         event = await event_service.create(
             Event,
@@ -540,7 +539,7 @@ class Mutation:
         if not staff:
             return False
         if staff.is_owner and staff.user_id != auth_user.user_id:
-            raise PermissionError("Only the owner can remove themselves as owner-organizer")
+            raise PermissionDenied("Only the owner can remove themselves as owner-organizer")
         staff.is_active = False
         await session.commit()
         return True

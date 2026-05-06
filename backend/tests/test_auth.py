@@ -11,10 +11,9 @@ from auth import (
     create_refresh_token_str,
     decode_token,
     hash_password,
-    require_auth,
-    require_role,
     verify_password,
 )
+from rbac import require_auth, require_role
 from config import settings
 
 

@@ -1,9 +1,8 @@
-"""Authentication and authorization utilities."""
+"""Authentication utilities — JWT, password hashing, token management."""
 
 import hashlib
 import uuid
 from datetime import datetime, timedelta
-from functools import wraps
 from typing import Optional
 
 import bcrypt
@@ -12,7 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from config import settings
-from models import EventStaff, RefreshToken, User
+from models import RefreshToken, User
 
 
 def hash_password(password: str) -> str:
@@ -156,94 +155,6 @@ class AuthContext:
     @property
     def is_authenticated(self) -> bool:
         return self.user is not None
-
-
-def require_auth(resolver_func=None, *, allow_public: bool = False):
-    """Decorator to require authentication on a resolver."""
-
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            info = None
-            for a in args:
-                if hasattr(a, "context"):
-                    info = a
-                    break
-            if info is None:
-                info = kwargs.get("info")
-
-            if info is not None and hasattr(info, "context"):
-                ctx = info.context
-                if isinstance(ctx, dict):
-                    current_user = ctx.get("current_user")
-                    if current_user is None:
-                        raise PermissionError("Authentication required")
-
-            return await func(*args, **kwargs)
-
-        return wrapper
-
-    if resolver_func is not None:
-        return decorator(resolver_func)
-    return decorator
-
-
-def require_role(role: str):
-    """Decorator to require a minimum platform role.
-
-    Hierarchy: user (0) < admin (1)
-    is_superuser bypasses all checks.
-    """
-
-    ROLE_HIERARCHY = {"user": 0, "admin": 1}
-
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            info = None
-            for a in args:
-                if hasattr(a, "context"):
-                    info = a
-                    break
-            if info is None:
-                info = kwargs.get("info")
-
-            if info is not None and hasattr(info, "context"):
-                ctx = info.context
-                if isinstance(ctx, dict):
-                    current_user = ctx.get("current_user")
-                    if current_user is None:
-                        raise PermissionError("Authentication required")
-                    if current_user.is_superuser:
-                        return await func(*args, **kwargs)
-                    user_level = ROLE_HIERARCHY.get(current_user.role, 0)
-                    required_level = ROLE_HIERARCHY.get(role, 0)
-                    if user_level < required_level:
-                        raise PermissionError(f"Requires role '{role}' or higher")
-
-            return await func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-async def check_event_role(
-    session: AsyncSession,
-    event_id: uuid.UUID,
-    user_id: uuid.UUID,
-    required_role: str = "organizer",
-) -> bool:
-    """Check if a user has a specific role on an event."""
-    result = await session.exec(
-        select(EventStaff).where(
-            EventStaff.event_id == event_id,
-            EventStaff.user_id == user_id,
-            EventStaff.role == required_role,
-            EventStaff.is_active == True,
-        )
-    )
-    return result.first() is not None
 
 
 async def get_auth_context(
