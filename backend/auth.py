@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from config import settings
-from models import RefreshToken, User
+from models import EventStaff, RefreshToken, User
 
 
 def hash_password(password: str) -> str:
@@ -159,13 +159,7 @@ class AuthContext:
 
 
 def require_auth(resolver_func=None, *, allow_public: bool = False):
-    """Decorator to require authentication on a resolver.
-
-    Usage:
-        @require_auth
-        async def my_mutation(self, info: Info, ...) -> Type:
-            ...
-    """
+    """Decorator to require authentication on a resolver."""
 
     def decorator(func):
         @wraps(func)
@@ -195,15 +189,13 @@ def require_auth(resolver_func=None, *, allow_public: bool = False):
 
 
 def require_role(role: str):
-    """Decorator to require a minimum role.
+    """Decorator to require a minimum platform role.
 
-    Usage:
-        @require_role("admin")
-        async def my_mutation(self, info: Info, ...) -> Type:
-            ...
+    Hierarchy: user (0) < admin (1)
+    is_superuser bypasses all checks.
     """
 
-    ROLE_HIERARCHY = {"user": 0, "organizer": 1, "admin": 2}
+    ROLE_HIERARCHY = {"user": 0, "admin": 1}
 
     def decorator(func):
         @wraps(func)
@@ -234,6 +226,24 @@ def require_role(role: str):
         return wrapper
 
     return decorator
+
+
+async def check_event_role(
+    session: AsyncSession,
+    event_id: uuid.UUID,
+    user_id: uuid.UUID,
+    required_role: str = "organizer",
+) -> bool:
+    """Check if a user has a specific role on an event."""
+    result = await session.exec(
+        select(EventStaff).where(
+            EventStaff.event_id == event_id,
+            EventStaff.user_id == user_id,
+            EventStaff.role == required_role,
+            EventStaff.is_active == True,
+        )
+    )
+    return result.first() is not None
 
 
 async def get_auth_context(

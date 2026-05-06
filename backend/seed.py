@@ -15,6 +15,7 @@ from models import (
     Member,
     Follower,
     Event,
+    EventStaff,
     Ticket,
     Order,
     OrderItem,
@@ -62,7 +63,7 @@ async def seed():
             password_hash=hash_password("password123"),
             first_name=fake.first_name(),
             last_name=fake.last_name(),
-            role="organizer",
+            role="user",
             is_email_verified=True,
         )
         org2_owner = User(
@@ -70,7 +71,7 @@ async def seed():
             password_hash=hash_password("password123"),
             first_name=fake.first_name(),
             last_name=fake.last_name(),
-            role="organizer",
+            role="user",
             is_email_verified=True,
         )
 
@@ -119,7 +120,7 @@ async def seed():
             # Add 3-5 random members to each org
             member_count = random.randint(3, 5)
             for user in random.sample(regular_users, member_count):
-                session.add(Member(user_id=user.id, organization_id=org.id, role=random.choice(["member", "organizer"])))
+                session.add(Member(user_id=user.id, organization_id=org.id, role=random.choice(["member", "admin"])))
 
             # Add 4-8 random followers to each org
             follower_pool = [admin, org1_owner, org2_owner] + regular_users
@@ -162,6 +163,17 @@ async def seed():
                 session.add(event)
                 await session.flush()
                 all_events.append(event)
+
+                # -------- EventStaff (organizer) ----------
+                org_owner_user = next(d["owner"] for d in org_data if d["slug"] == org.slug)
+                session.add(EventStaff(
+                    event_id=event.id,
+                    user_id=org_owner_user.id,
+                    role="organizer",
+                    is_owner=True,
+                    assigned_by=org_owner_user.id,
+                ))
+                await session.flush()
 
                 # -------- Tickets ----------
                 ticket_configs = [
@@ -262,7 +274,6 @@ async def seed():
         # Summary
         org_count = len(orgs)
         event_count = len(all_events)
-        ticket_count = await session.connection()
         print(f"Seeded: 11 users | {org_count} orgs | {event_count} events | with tickets, orders, attendees, payments")
 
 

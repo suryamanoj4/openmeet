@@ -9,8 +9,9 @@ import strawberry
 class EventStaffType:
     id: uuid.UUID
     event_id: uuid.UUID
-    member_id: uuid.UUID
+    user_id: uuid.UUID
     role: str
+    is_owner: bool
     assigned_at: datetime
     assigned_by: Optional[uuid.UUID]
     created_at: datetime

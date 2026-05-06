@@ -211,9 +211,11 @@ def event_staff_to_type(staff) -> dict:
     return {
         "id": staff.id,
         "event_id": staff.event_id,
-        "member_id": staff.member_id,
+        "user_id": staff.user_id,
         "role": staff.role,
+        "is_owner": staff.is_owner,
         "assigned_at": staff.assigned_at,
+        "assigned_by": staff.assigned_by,
         "is_active": staff.is_active,
         "created_at": staff.created_at,
         "updated_at": staff.updated_at,

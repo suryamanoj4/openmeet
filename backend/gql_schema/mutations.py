@@ -17,6 +17,8 @@ from auth import (
     verify_refresh_token,
     revoke_refresh_token,
     revoke_all_user_tokens,
+    require_auth,
+    check_event_role,
 )
 from payment_provider import get_provider
 from gql_schema.types import (
@@ -27,6 +29,7 @@ from gql_schema.types import (
     OrderType,
     AttendeeType,
     PaymentType,
+    EventStaffType,
 )
 from gql_schema.types.auth import AuthPayload, RefreshPayload
 from gql_schema.types.payment_provider import PaymentOrderPayload, PaymentVerificationResult
@@ -61,8 +64,9 @@ from gql_schema.services.mapping import (
     order_to_type,
     attendee_to_type,
     payment_to_type,
+    event_staff_to_type,
 )
-from models import User, Organization, Event, Ticket
+from models import User, Organization, Event, Ticket, EventStaff
 
 
 def get_session(info: Info) -> AsyncSession:
@@ -387,14 +391,24 @@ class Mutation:
         return await service.remove_follower(organization_id, user_id)
 
     @strawberry.mutation
+    @require_auth
     async def create_event(
         self,
         info: Info,
         input: CreateEventInput,
     ) -> EventType:
         session = get_session(info)
-        service = EventService(session)
-        event = await service.create(
+        auth_user = get_auth_user(info)
+        event_service = EventService(session)
+
+        # If organization_id provided, verify user is admin of that org
+        if input.organization_id:
+            org_service = OrganizationService(session)
+            member = await org_service.get_member(input.organization_id, auth_user.user_id)
+            if not member or member.role not in ("admin",):
+                raise PermissionError("You must be an admin of the organization to create events under it")
+
+        event = await event_service.create(
             Event,
             organization_id=input.organization_id,
             name=input.name,
@@ -420,11 +434,23 @@ class Mutation:
             cover_image_url=input.cover_image_url,
             banner_image_url=input.banner_image_url,
             settings=input.settings,
+            created_by=auth_user.user_id,
+        )
+        await session.flush()
+
+        # Auto-create EventStaff record as owner-organizer
+        await event_service.add_organizer(
+            event_id=event.id,
+            user_id=auth_user.user_id,
+            assigned_by=auth_user.user_id,
+            is_owner=True,
         )
         await session.commit()
+
         return EventType(**event_to_type(event))
 
     @strawberry.mutation
+    @require_auth
     async def update_event(
         self,
         info: Info,
@@ -432,10 +458,14 @@ class Mutation:
         input: UpdateEventInput,
     ) -> Optional[EventType]:
         session = get_session(info)
+        auth_user = get_auth_user(info)
         service = EventService(session)
+
         event = await service.get_by_id(id)
         if not event:
             return None
+
+        await service.ensure_organizer(id, auth_user.user_id)
 
         update_data = {k: v for k, v in input.__dict__.items() if v is not None}
         event = await service.update(event, **update_data)
@@ -443,20 +473,79 @@ class Mutation:
         return EventType(**event_to_type(event))
 
     @strawberry.mutation
+    @require_auth
     async def delete_event(
         self,
         info: Info,
         id: UUID,
     ) -> bool:
         session = get_session(info)
+        auth_user = get_auth_user(info)
         service = EventService(session)
+
         event = await service.get_by_id(id)
         if not event:
             return False
+
+        await service.ensure_organizer(id, auth_user.user_id)
         await service.delete(event)
         await session.commit()
         return True
 
+    @strawberry.mutation
+    @require_auth
+    async def add_event_organizer(
+        self,
+        info: Info,
+        event_id: UUID,
+        user_id: UUID,
+    ) -> EventStaffType:
+        session = get_session(info)
+        auth_user = get_auth_user(info)
+        service = EventService(session)
+
+        await service.ensure_organizer(event_id, auth_user.user_id)
+
+        staff = await service.add_organizer(
+            event_id=event_id,
+            user_id=user_id,
+            assigned_by=auth_user.user_id,
+            is_owner=False,
+        )
+        await session.commit()
+        return EventStaffType(**event_staff_to_type(staff))
+
+    @strawberry.mutation
+    @require_auth
+    async def remove_event_organizer(
+        self,
+        info: Info,
+        event_id: UUID,
+        user_id: UUID,
+    ) -> bool:
+        session = get_session(info)
+        auth_user = get_auth_user(info)
+        service = EventService(session)
+
+        await service.ensure_organizer(event_id, auth_user.user_id)
+
+        result = await session.exec(
+            select(EventStaff).where(
+                EventStaff.event_id == event_id,
+                EventStaff.user_id == user_id,
+                EventStaff.is_active == True,
+            )
+        )
+        staff = result.first()
+        if not staff:
+            return False
+        if staff.is_owner and staff.user_id != auth_user.user_id:
+            raise PermissionError("Only the owner can remove themselves as owner-organizer")
+        staff.is_active = False
+        await session.commit()
+        return True
+
+    # ----- Ticket mutations -----
     @strawberry.mutation
     async def create_ticket(
         self,
@@ -515,6 +604,8 @@ class Mutation:
         await session.commit()
         return True
 
+    # ----- Order mutations -----
+
     @strawberry.mutation
     async def create_order(
         self,
@@ -569,6 +660,8 @@ class Mutation:
         order = await service.cancel_order(order, release_tickets=release_tickets)
         await session.commit()
         return OrderType(**order_to_type(order))
+
+    # ----- Attendee mutations -----
 
     @strawberry.mutation
     async def check_in_attendee(

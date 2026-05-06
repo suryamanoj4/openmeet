@@ -36,7 +36,6 @@ class Member(MemberBase, table=True):
         },
     )
     organization: "Organization" = Relationship(back_populates="members")
-    event_staff_assignments: list["EventStaff"] = Relationship(back_populates="member")
 
     def __repr__(self) -> str:
         return f"<Member {self.user_id} in {self.organization_id}>"

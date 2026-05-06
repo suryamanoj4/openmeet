@@ -226,6 +226,58 @@ async def stripe_webhook(request: Request):
 
 ---
 
+---
+
+## Role & Permission System
+
+Two separate domains:
+
+### Platform-Level Roles (on `User`)
+
+| Role | Level | Description |
+|------|-------|-------------|
+| `user` | 0 | Default. Browse events, register/buy tickets, create personal events, manage own profile |
+| `admin` | 1 | Everything a user can, plus delete users, manage any event, platform admin |
+
+- `is_superuser: true` bypasses all permission checks
+- Role hierarchy enforced by `require_role("admin")` decorator in `auth.py`
+
+### Event-Level Roles (on `EventStaff`)
+
+The `EventStaff` model links users directly to events:
+
+```
+EventStaff
+├── user_id      FK → users.id
+├── event_id     FK → events.id
+├── role         "organizer" (string, extensible for future roles)
+├── is_owner     boolean — only the creator/owner can transfer ownership
+├── assigned_by  FK → users.id
+└── assigned_at  datetime
+```
+
+Rules:
+- Every event has at least one `EventStaff` record with `role="organizer"`
+- The creator gets `is_owner=true` — only they can transfer ownership
+- Additional co-organizers can be added with `role="organizer"`, `is_owner=false`
+- All organizers have equal editing power (except ownership transfer)
+- Event role checked via `require_event_role(event_id, "organizer")` in `auth.py`
+
+### Organization Membership (on `Member`)
+
+- `Member.role`: `"admin"` or `"member"` (per-organization)
+- Used for organization-level features (grouping events, team management)
+- Event creation: user must be org admin to associate event with an org
+- Personal events can be created without any org
+
+### Participants vs Organizers
+
+- **Participants** = users who registered/bought tickets → tracked via `Order` / `Attendee`
+- **Organizers** = users who manage the event → tracked via `EventStaff`
+- These are completely separate — a user can be both an organizer and a participant
+
+---
+
 ## Implementation Order
 
 ### Step 1: Foundation

@@ -12,7 +12,6 @@ class UserRole(str, enum.Enum):
     """Platform-level user role."""
 
     USER = "user"
-    ORGANIZER = "organizer"
     ADMIN = "admin"
 
 
@@ -47,6 +46,13 @@ class User(UserBase, table=True):
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
             "primaryjoin": "User.id == foreign(Member.user_id)",
+        },
+    )
+    event_staff_assignments: list["EventStaff"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan",
+            "primaryjoin": "User.id == foreign(EventStaff.user_id)",
         },
     )
     followers: list["Follower"] = Relationship(back_populates="user", sa_relationship_kwargs={"cascade": "all, delete-orphan"})

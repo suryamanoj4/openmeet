@@ -12,7 +12,7 @@ from sqlalchemy import Column, Index
 class EventBase(SQLModel):
     """Base event fields."""
 
-    organization_id: uuid.UUID = Field(foreign_key="organizations.id", ondelete="CASCADE")
+    organization_id: Optional[uuid.UUID] = Field(default=None, foreign_key="organizations.id", ondelete="SET NULL")
     name: str = Field(max_length=255)
     slug: str = Field(max_length=100)
     description: Optional[str] = Field(default=None)
@@ -50,7 +50,7 @@ class Event(EventBase, table=True):
     created_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
 
     # Relationships
-    organization: "Organization" = Relationship(back_populates="events")
+    organization: Optional["Organization"] = Relationship(back_populates="events")
     staff_assignments: list["EventStaff"] = Relationship(back_populates="event", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     tickets: list["Ticket"] = Relationship(back_populates="event", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     orders: list["Order"] = Relationship(back_populates="event", sa_relationship_kwargs={"cascade": "all, delete-orphan"})

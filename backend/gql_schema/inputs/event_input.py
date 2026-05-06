@@ -9,7 +9,7 @@ from strawberry.scalars import JSON
 
 @input
 class CreateEventInput:
-    organization_id: UUID
+    organization_id: Optional[UUID] = None
     name: str
     slug: str
     description: Optional[str] = None
