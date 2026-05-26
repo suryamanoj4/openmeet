@@ -14,7 +14,7 @@
 	let deleting = $state(false);
 
 	onMount(async () => {
-		const id = $page.params.id;
+		const id = $page.params.id as string;
 		event = await getEvent(id);
 		if (event) tickets = await getEventTickets(id);
 		loading = false;
@@ -23,7 +23,7 @@
 	async function handleDelete() {
 		if (!confirm('Delete this event? This cannot be undone.')) return;
 		deleting = true;
-		await deleteEvent($page.params.id);
+		await deleteEvent($page.params.id as string);
 		goto('/events');
 	}
 
@@ -35,9 +35,11 @@
 <div class="mx-auto max-w-4xl px-6 py-8">
 	<button onclick={() => goto('/events')} class="flex items-center gap-2 text-body-md text-on-surface-variant hover:text-fg mb-6 transition-colors"><ArrowLeft size={18} /> Events</button>
 
-	{#if loading}<div class="h-64 rounded-xl bg-surface-container animate-pulse" />
+	{#if loading}<div class="h-64 rounded-xl bg-surface-container animate-pulse"></div>
 	{:else if !event}<div class="text-center py-16"><p class="text-body-lg text-on-surface-variant">Event not found</p></div>
 	{:else}
+		{@const eid = event.id}
+
 		{#if event.cover_image_url}
 			<div class="aspect-[2/1] w-full rounded-2xl overflow-hidden mb-8"><img src={event.cover_image_url} alt={event.name} class="w-full h-full object-cover" /></div>
 		{/if}
@@ -52,7 +54,7 @@
 				<h1 class="text-headline-xl font-bold text-fg">{event.name}</h1>
 			</div>
 			<div class="flex gap-2">
-				<Button variant="outline" size="sm" onclick={() => goto(`/events/${event.id}/edit`)}><Settings size={14} class="mr-1" />Edit</Button>
+				<Button variant="outline" size="sm" onclick={() => goto(`/events/${eid}/edit`)}><Settings size={14} class="mr-1" />Edit</Button>
 				<Button variant="destructive" size="sm" onclick={handleDelete} isLoading={deleting}><Trash2 size={14} class="mr-1" />Delete</Button>
 			</div>
 		</div>
@@ -71,7 +73,7 @@
 		<div class="mb-8">
 			<div class="flex items-center justify-between mb-4">
 				<h2 class="text-headline-lg font-semibold text-fg"><Ticket size={20} class="inline mr-2 text-primary" />Tickets</h2>
-				<Button variant="outline" size="sm" onclick={() => goto(`/builder/event/${event.id}`)}>Manage Tickets</Button>
+				<Button variant="outline" size="sm" onclick={() => goto(`/builder/event/${eid}`)}>Manage Tickets</Button>
 			</div>
 			{#if tickets.length === 0}
 				<Card class="p-6 text-center"><p class="text-body-md text-on-surface-variant">No tickets configured yet</p></Card>
@@ -88,8 +90,8 @@
 		</div>
 
 		<div class="flex gap-3">
-			<Button variant="primary" size="lg" onclick={() => goto(`/builder/event/${event.id}`)}>Open Page Builder</Button>
-			<Button variant="outline" size="lg" onclick={() => goto(`/attendees?eventId=${event.id}`)}>View Attendees</Button>
+			<Button variant="primary" size="lg" onclick={() => goto(`/builder/event/${eid}`)}>Open Page Builder</Button>
+			<Button variant="outline" size="lg" onclick={() => goto(`/attendees?eventId=${eid}`)}>View Attendees</Button>
 		</div>
 	{/if}
 </div>

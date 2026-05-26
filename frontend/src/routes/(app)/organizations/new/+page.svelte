@@ -59,7 +59,7 @@
 				</div>
 				<div class="space-y-1.5">
 					<Label for="desc">Description</Label>
-					<textarea id="desc" bind:value={description} class="flex min-h-[100px] w-full rounded-lg border border-input bg-surface-container-lowest px-3 py-2 text-body-md text-fg placeholder:text-on-surface-variant/60 ring-offset-surface-container-lowest transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" placeholder="Description of your organization" />
+					<textarea id="desc" bind:value={description} class="flex min-h-[100px] w-full rounded-lg border border-input bg-surface-container-lowest px-3 py-2 text-body-md text-fg placeholder:text-on-surface-variant/60 ring-offset-surface-container-lowest transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" placeholder="Description of your organization"></textarea>
 				</div>
 				<div class="flex gap-3 pt-2">
 					<Button type="submit" variant="primary" size="lg" isLoading={saving}>Create</Button>

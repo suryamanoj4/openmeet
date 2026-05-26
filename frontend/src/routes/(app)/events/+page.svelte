@@ -16,7 +16,7 @@
 		loading = false;
 	});
 
-	$: filtered = filter === 'all' ? events : events.filter(e => e.status === filter);
+	let filtered = $derived(filter === 'all' ? events : events.filter(e => e.status === filter));
 
 	function formatDate(d: string) {
 		return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -43,7 +43,7 @@
 	</div>
 
 	{#if loading}
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{#each [1,2,3] as _}<div class="h-48 rounded-xl bg-surface-container animate-pulse" />{/each}</div>
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{#each [1,2,3] as _}<div class="h-48 rounded-xl bg-surface-container animate-pulse"></div>{/each}</div>
 	{:else if filtered.length === 0}
 		<div class="rounded-xl border border-outline-variant bg-surface-container-lowest p-16 text-center">
 			<Calendar size={40} class="mx-auto text-on-surface-variant/40 mb-4" />
@@ -53,7 +53,7 @@
 	{:else}
 		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			{#each filtered as event}
-				<Card class="cursor-pointer hover:shadow-md transition-all" onclick={() => goto(`/events/${event.id}`)}>
+				<div class="rounded-xl border border-outline-variant bg-card shadow-sm hover:shadow-md transition-all cursor-pointer" onclick={() => goto(`/events/${event.id}`)} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && goto(`/events/${event.id}`)}>
 					{#if event.cover_image_url}
 						<div class="aspect-video w-full overflow-hidden rounded-t-xl"><img src={event.cover_image_url} alt={event.name} class="w-full h-full object-cover" /></div>
 					{/if}
@@ -65,15 +65,16 @@
 						<h3 class="text-headline-md font-semibold text-fg leading-snug">{event.name}</h3>
 						<div class="flex items-center gap-3 text-body-md text-on-surface-variant">
 							<Calendar size={14} /><span>{formatDate(event.start_date)}</span>
-							{event.venue_city ? <><MapPin size={14} /><span>{event.venue_city}</span></> : null}
-							{event.is_online ? <Globe size={14} /> : null}
 						</div>
 						<div class="flex items-center justify-between pt-1">
-							<span class="text-body-md text-on-surface-variant">{event.venue_city || (event.is_online ? 'Online' : 'TBD')}</span>
+							<div class="flex items-center gap-2 text-body-md text-on-surface-variant">
+								{#if event.venue_city}<MapPin size={14} /><span>{event.venue_city}</span>{/if}
+								{#if event.is_online}<Globe size={14} /><span>Online</span>{/if}
+							</div>
 							<ArrowRight size={16} class="text-on-surface-variant" />
 						</div>
 					</div>
-				</Card>
+				</div>
 			{/each}
 		</div>
 	{/if}

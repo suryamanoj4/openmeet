@@ -42,7 +42,7 @@
 </script>
 
 <div class="mx-auto max-w-4xl px-6 py-8">
-	{#if loading}<div class="h-96 rounded-2xl bg-surface-container animate-pulse" />
+	{#if loading}<div class="h-96 rounded-2xl bg-surface-container animate-pulse"></div>
 	{:else if error}<div class="text-center py-16"><p class="text-body-lg text-on-surface-variant">{error}</p></div>
 	{:else if eventData}
 		{@const e = eventData as Record<string, string>}
@@ -60,7 +60,7 @@
 			<Card class="p-4 flex items-center gap-3"><Calendar size={18} class="text-primary shrink-0" /><div><p class="text-label-sm text-on-surface-variant">Start</p><p class="text-body-md font-semibold text-fg">{formatDate(e.start_date)}</p></div></Card>
 			<Card class="p-4 flex items-center gap-3"><Clock size={18} class="text-primary shrink-0" /><div><p class="text-label-sm text-on-surface-variant">End</p><p class="text-body-md font-semibold text-fg">{formatDate(e.end_date)}</p></div></Card>
 			<Card class="p-4 flex items-center gap-3">
-				{e.is_online === 'true' ? <Globe size={18} class="text-primary shrink-0" /> : <MapPin size={18} class="text-primary shrink-0" />}
+				{#if e.is_online === 'true'}<Globe size={18} class="text-primary shrink-0" />{:else}<MapPin size={18} class="text-primary shrink-0" />{/if}
 				<div><p class="text-label-sm text-on-surface-variant">Location</p><p class="text-body-md font-semibold text-fg">{e.venue_city || (e.is_online === 'true' ? 'Online' : 'TBD')}</p></div>
 			</Card>
 			<Card class="p-4 flex items-center gap-3"><Users size={18} class="text-primary shrink-0" /><div><p class="text-label-sm text-on-surface-variant">Capacity</p><p class="text-body-md font-semibold text-fg">{e.max_attendees || 'Unlimited'}</p></div></Card>

@@ -22,9 +22,9 @@
 		loading = false;
 	}
 
-	$: totalRevenue = orders.filter(o => o.payment_status === 'paid').reduce((s, o) => s + Number(o.total_amount), 0);
-	$: checkedIn = attendees.filter(a => a.check_in_status === 'checked_in').length;
-	$: confirmedOrders = orders.filter(o => o.status === 'confirmed').length;
+	let totalRevenue = $derived(orders.filter(o => o.payment_status === 'paid').reduce((s, o) => s + Number(o.total_amount), 0));
+	let checkedIn = $derived(attendees.filter(a => a.check_in_status === 'checked_in').length);
+	let confirmedOrders = $derived(orders.filter(o => o.status === 'confirmed').length);
 </script>
 
 <div class="mx-auto max-w-7xl px-6 py-8">
@@ -42,7 +42,7 @@
 	{#if !selectedEvent}
 		<Card class="p-16 text-center"><BarChart3 size={40} class="mx-auto text-on-surface-variant/40 mb-4" /><h3 class="text-headline-md font-semibold text-fg">Select an event</h3><p class="text-body-md text-on-surface-variant mt-2">Choose an event to view its analytics</p></Card>
 	{:else if loading}
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{#each [1,2,3,4] as _}<div class="h-32 rounded-xl bg-surface-container animate-pulse" />{/each}</div>
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{#each [1,2,3,4] as _}<div class="h-32 rounded-xl bg-surface-container animate-pulse"></div>{/each}</div>
 	{:else}
 		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8 animate-fade-in">
 			<Card class="p-6"><div class="flex items-center gap-4"><div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-fixed text-primary"><DollarSign size={24} /></div><div><p class="text-label-sm text-on-surface-variant">Revenue</p><p class="text-headline-lg font-bold text-fg">${totalRevenue.toFixed(2)}</p></div></div></Card>

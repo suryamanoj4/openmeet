@@ -59,7 +59,7 @@
 
 			<div class="relative">
 				<Search size={18} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-				<input type="text" placeholder="Search by name or email..." value={query} oninput={(e) => handleSearch(e.currentTarget.value)}
+				<input type="text" placeholder="Search by name or email..." bind:value={query} oninput={(e) => handleSearch(e.currentTarget.value)}
 					class="w-full h-12 pl-10 pr-4 rounded-xl border border-input bg-surface-container-lowest text-body-md focus:ring-2 focus:ring-primary outline-none"
 					disabled={!selectedEvent} />
 			</div>
@@ -73,7 +73,7 @@
 	{/if}
 
 	{#if searching}
-		<div class="space-y-3">{#each [1,2] as _}<div class="h-20 rounded-xl bg-surface-container animate-pulse" />{/each}</div>
+		<div class="space-y-3">{#each [1,2] as _}<div class="h-20 rounded-xl bg-surface-container animate-pulse"></div>{/each}</div>
 	{:else if results.length > 0}
 		<div class="space-y-3 animate-fade-in">
 			{#each results as r}

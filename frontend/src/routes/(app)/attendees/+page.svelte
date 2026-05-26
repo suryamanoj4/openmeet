@@ -23,11 +23,13 @@
 		loading = false;
 	}
 
-	$: filtered = searchQuery ? attendees.filter(a =>
-		a.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-		a.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-		a.email.toLowerCase().includes(searchQuery.toLowerCase())
-	) : attendees;
+	let filtered = $derived(searchQuery
+		? attendees.filter(a =>
+			a.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+			a.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+			a.email.toLowerCase().includes(searchQuery.toLowerCase()))
+		: attendees
+	);
 
 	async function handleCheckIn(id: string) {
 		const user = $currentUser;
@@ -62,7 +64,7 @@
 	{#if !selectedEvent}
 		<Card class="p-16 text-center"><Users size={40} class="mx-auto text-on-surface-variant/40 mb-4" /><h3 class="text-headline-md font-semibold text-fg">Select an event</h3><p class="text-body-md text-on-surface-variant mt-2">Choose an event to view its attendees</p></Card>
 	{:else if loading}
-		<div class="space-y-3">{#each [1,2,3] as _}<div class="h-16 rounded-xl bg-surface-container animate-pulse" />{/each}</div>
+		<div class="space-y-3">{#each [1,2,3] as _}<div class="h-16 rounded-xl bg-surface-container animate-pulse"></div>{/each}</div>
 	{:else if filtered.length === 0}
 		<Card class="p-16 text-center"><Users size={40} class="mx-auto text-on-surface-variant/40 mb-4" /><h3 class="text-headline-md text-fg">No attendees</h3></Card>
 	{:else}

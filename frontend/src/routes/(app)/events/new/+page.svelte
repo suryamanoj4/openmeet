@@ -9,7 +9,7 @@
 	import CardHeader from '$lib/components/ui/card-header.svelte';
 	import CardTitle from '$lib/components/ui/card-title.svelte';
 	import CardContent from '$lib/components/ui/card-content.svelte';
-	import { ArrowLeft, Calendar } from 'lucide-svelte';
+	import { ArrowLeft } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import type { Organization } from '$lib/graphql/types';
 
@@ -46,7 +46,7 @@
 				{#if error}<div class="rounded-lg border border-error-container/50 bg-error-container/10 p-3"><p class="text-body-md text-error">{error}</p></div>{/if}
 				<div class="space-y-1.5"><Label for="name">Name</Label><Input id="name" bind:value={name} required /></div>
 				<div class="space-y-1.5"><Label for="slug">Slug</Label><Input id="slug" bind:value={slug} required /></div>
-				<div class="space-y-1.5"><Label for="desc">Description</Label><textarea id="desc" bind:value={description} class="flex min-h-[80px] w-full rounded-lg border border-input bg-surface-container-lowest px-3 py-2 text-body-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" /></div>
+				<div class="space-y-1.5"><Label for="desc">Description</Label><textarea id="desc" bind:value={description} class="flex min-h-[80px] w-full rounded-lg border border-input bg-surface-container-lowest px-3 py-2 text-body-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"></textarea></div>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="space-y-1.5"><Label for="type">Type</Label><select id="type" bind:value={event_type} class="flex h-10 w-full rounded-lg border border-input bg-surface-container-lowest px-3 text-body-md"><option value="conference">Conference</option><option value="workshop">Workshop</option><option value="meetup">Meetup</option><option value="webinar">Webinar</option><option value="hackathon">Hackathon</option></select></div>
 					<div class="space-y-1.5">

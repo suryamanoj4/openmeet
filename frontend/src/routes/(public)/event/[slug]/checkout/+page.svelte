@@ -21,6 +21,9 @@
 
 	let email = $state(''); let name = $state(''); let phone = $state('');
 
+	let total = $derived(tickets.reduce((sum, t) => sum + (quantities[t.id] || 0) * Number(t.price), 0));
+	let hasItems = $derived(tickets.some(t => (quantities[t.id] || 0) > 0));
+
 	onMount(async () => {
 		try {
 			const eventsRes = await graphqlClient.query<{ events: { id: string; slug: string; organization_id: string }[] }>(EVENTS, { limit: 50 }).toPromise();
@@ -38,9 +41,6 @@
 		} catch (err) { error = 'Failed to load event'; }
 		loading = false;
 	});
-
-	$: total = tickets.reduce((sum, t) => sum + (quantities[t.id] || 0) * Number(t.price), 0);
-	$: hasItems = tickets.some(t => (quantities[t.id] || 0) > 0);
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault(); error = null; submitting = true;
@@ -62,7 +62,7 @@
 <div class="mx-auto max-w-2xl px-6 py-8">
 	<button onclick={() => goto(`/event/${$page.params.slug}`)} class="flex items-center gap-2 text-body-md text-on-surface-variant hover:text-fg mb-6 transition-colors"><ArrowLeft size={18} /> Back to event</button>
 
-	{#if loading}<div class="h-64 rounded-xl bg-surface-container animate-pulse" />
+	{#if loading}<div class="h-64 rounded-xl bg-surface-container animate-pulse"></div>
 	{:else if success}
 		<div class="rounded-2xl border border-primary-fixed bg-primary-fixed/20 p-12 text-center animate-scale-in">
 			<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-on-primary mb-4"><ShoppingCart size={32} /></div>

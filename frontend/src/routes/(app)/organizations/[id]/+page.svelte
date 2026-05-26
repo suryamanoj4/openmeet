@@ -13,7 +13,7 @@
 	let loading = $state(true);
 
 	onMount(async () => {
-		const id = $page.params.id;
+		const id = $page.params.id as string;
 		org = await getOrganization(id);
 		members = await getMembers(id);
 		loading = false;
@@ -27,10 +27,12 @@
 	</button>
 
 	{#if loading}
-		<div class="h-64 rounded-xl bg-surface-container animate-pulse" />
+		<div class="h-64 rounded-xl bg-surface-container animate-pulse"></div>
 	{:else if !org}
 		<div class="text-center py-16"><p class="text-body-lg text-on-surface-variant">Organization not found</p></div>
 	{:else}
+		{@const oid = org.id}
+
 		<div class="flex items-start justify-between mb-8">
 			<div class="flex items-center gap-4">
 				<div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-fixed text-on-primary-fixed">
@@ -41,7 +43,7 @@
 					<p class="text-body-md text-on-surface-variant mt-1">@{org.slug}</p>
 				</div>
 			</div>
-			<Button variant="outline" size="md" onclick={() => goto(`/organizations/${org.id}/edit`)}>
+			<Button variant="outline" size="md" onclick={() => goto(`/organizations/${oid}/edit`)}>
 				<Settings size={16} class="mr-1.5" />
 				Edit
 			</Button>

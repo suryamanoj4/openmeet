@@ -31,7 +31,7 @@
 	{#if loading}
 		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			{#each [1,2,3] as _}
-				<div class="h-40 rounded-xl bg-surface-container animate-pulse" />
+				<div class="h-40 rounded-xl bg-surface-container animate-pulse"></div>
 			{/each}
 		</div>
 	{:else if orgs.length === 0}
@@ -48,7 +48,7 @@
 	{:else}
 		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			{#each orgs as org}
-				<Card class="p-6 cursor-pointer hover:shadow-md transition-shadow" onclick={() => goto(`/organizations/${org.id}`)}>
+				<div class="rounded-xl border border-outline-variant bg-card p-6 shadow-sm hover:shadow-md transition-all cursor-pointer" onclick={() => goto(`/organizations/${org.id}`)} onkeydown={(e) => e.key === 'Enter' && goto(`/organizations/${org.id}`)} role="button" tabindex="0">
 					<div class="flex items-start gap-4">
 						<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-fixed text-on-primary-fixed">
 							<Building2 size={24} />
@@ -65,7 +65,7 @@
 						</div>
 						<ArrowRight size={18} class="text-on-surface-variant shrink-0 mt-2" />
 					</div>
-				</Card>
+				</div>
 			{/each}
 		</div>
 	{/if}

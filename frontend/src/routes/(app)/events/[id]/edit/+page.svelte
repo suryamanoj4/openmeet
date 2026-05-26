@@ -19,9 +19,11 @@
 	let cover_image_url = $state(''); let organization_id = $state<string | undefined>(undefined);
 	let orgs = $state<Organization[]>([]);
 	let error = $state<string | null>(null); let saving = $state(false); let loading = $state(true);
+	let eid = $state('');
 
 	onMount(async () => {
-		const [event, orgList] = await Promise.all([getEvent($page.params.id), listOrganizations()]);
+		eid = $page.params.id as string;
+		const [event, orgList] = await Promise.all([getEvent(eid), listOrganizations()]);
 		orgs = orgList;
 		if (event) {
 			name = event.name; slug = event.slug; description = event.description || '';
@@ -35,27 +37,27 @@
 	async function handleSubmit(e: Event) {
 		e.preventDefault(); error = null; saving = true;
 		try {
-			await updateEvent($page.params.id, {
+			await updateEvent(eid, {
 				name, slug, description: description || null, event_type,
 				venue_city: venue_city || null, is_online, cover_image_url: cover_image_url || null,
 			});
-			goto(`/events/${$page.params.id}`);
+			goto(`/events/${eid}`);
 		} catch (err) { error = err instanceof Error ? err.message : 'Failed'; } finally { saving = false; }
 	}
 </script>
 
 <div class="mx-auto max-w-2xl px-6 py-8">
-	<button onclick={() => goto(`/events/${$page.params.id}`)} class="flex items-center gap-2 text-body-md text-on-surface-variant hover:text-fg mb-6 transition-colors"><ArrowLeft size={18} /> Back</button>
+	<button onclick={() => goto(`/events/${eid}`)} class="flex items-center gap-2 text-body-md text-on-surface-variant hover:text-fg mb-6 transition-colors"><ArrowLeft size={18} /> Back</button>
 	<Card>
 		<CardHeader><CardTitle>Edit Event</CardTitle></CardHeader>
 		<CardContent>
-			{#if loading}<div class="h-48 animate-pulse rounded-lg bg-surface-container" />
+			{#if loading}<div class="h-48 animate-pulse rounded-lg bg-surface-container"></div>
 			{:else}
 				<form onsubmit={handleSubmit} class="space-y-5">
 					{#if error}<div class="rounded-lg border border-error-container/50 bg-error-container/10 p-3"><p class="text-body-md text-error">{error}</p></div>{/if}
 					<div class="space-y-1.5"><Label for="name">Name</Label><Input id="name" bind:value={name} required /></div>
 					<div class="space-y-1.5"><Label for="slug">Slug</Label><Input id="slug" bind:value={slug} required /></div>
-					<div class="space-y-1.5"><Label for="desc">Description</Label><textarea id="desc" bind:value={description} class="flex min-h-[80px] w-full rounded-lg border border-input bg-surface-container-lowest px-3 py-2 text-body-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" /></div>
+					<div class="space-y-1.5"><Label for="desc">Description</Label><textarea id="desc" bind:value={description} class="flex min-h-[80px] w-full rounded-lg border border-input bg-surface-container-lowest px-3 py-2 text-body-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"></textarea></div>
 					<div class="grid grid-cols-2 gap-4">
 						<div class="space-y-1.5"><Label for="type">Type</Label><select id="type" bind:value={event_type} class="flex h-10 w-full rounded-lg border border-input bg-surface-container-lowest px-3 text-body-md"><option value="conference">Conference</option><option value="workshop">Workshop</option><option value="meetup">Meetup</option><option value="webinar">Webinar</option><option value="hackathon">Hackathon</option></select></div>
 						<div class="space-y-1.5"><Label for="org">Organization</Label><select id="org" bind:value={organization_id} class="flex h-10 w-full rounded-lg border border-input bg-surface-container-lowest px-3 text-body-md"><option value={undefined}>Personal event</option>{#each orgs as org}<option value={org.id}>{org.name}</option>{/each}</select></div>
@@ -65,7 +67,7 @@
 						<div class="space-y-1.5 flex items-end pb-2"><label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" bind:checked={is_online} class="w-4 h-4 rounded border-outline-variant text-primary" /><span class="text-body-md text-fg">Online event</span></label></div>
 					</div>
 					<div class="space-y-1.5"><Label for="cover">Cover Image URL</Label><Input id="cover" bind:value={cover_image_url} /></div>
-					<div class="flex gap-3 pt-2"><Button type="submit" variant="primary" size="lg" isLoading={saving}>Save</Button><Button type="button" variant="outline" size="lg" onclick={() => goto(`/events/${$page.params.id}`)}>Cancel</Button></div>
+					<div class="flex gap-3 pt-2"><Button type="submit" variant="primary" size="lg" isLoading={saving}>Save</Button><Button type="button" variant="outline" size="lg" onclick={() => goto(`/events/${eid}`)}>Cancel</Button></div>
 				</form>
 			{/if}
 		</CardContent>
