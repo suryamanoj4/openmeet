@@ -1,352 +1,195 @@
-# OpenMeets - Development Roadmap
+# OpenMeet Development Status
 
-**Purpose:** Track what has been done AND what remains to be built
-
----
-
-## Status Legend
-
-- ✅ **Done** - Implemented and functional
-- 🔄 **In Progress** - Currently being built
-- 📋 **To Do** - Not yet started
-- ❌ **Blocked** - Needs resolution
+> Generated: 2026-05-06
 
 ---
 
-## Backend API
-
-### Authentication
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| User registration | ✅ Done | register mutation with JWT |
-| User login | ✅ Done | login mutation with JWT |
-| Token refresh | ✅ Done | refreshToken mutation |
-| Token revoke | ✅ Done | revokeToken + logout mutations |
-| Session management | ✅ Done | logout_all mutation |
-| RBAC (roles) | ✅ Done | user/organizer/admin + is_superuser |
-| Password reset | 📋 To Do | Email token flow |
-| Email verification | 📋 To Do | Send verification email |
-
-### Organizations
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Create organization | ✅ Done | Full CRUD |
-| Update organization | ✅ Done | Implemented |
-| Delete organization | ✅ Done | Soft delete |
-| Add members | ✅ Done | addOrganizationMember |
-| Change member roles | ✅ Done | updateMemberRole |
-| Remove members | ✅ Done | Soft delete |
-| Organization followers | ✅ Done | Follow/unfollow |
-| Invite members | 📋 To Do | Email invitations |
-
-### Events
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Create event | ✅ Done | Full CRUD |
-| Update event | ✅ Done | Implemented |
-| Delete event | ✅ Done | Soft delete |
-| Publish event | ✅ Done | Status change via update |
-| Cancel event | ✅ Done | Status change via update |
-| Duplicate event | 📋 To Do | Copy event data |
-| Event types | ✅ Done | Enum defined |
-| Visibility controls | ✅ Done | Public/private |
-| Venue support | ✅ Done | JSON address |
-| Online events | ✅ Done | is_online flag |
-| Staff assignment | 📋 To Do | Assign from members |
-
-### Tickets
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Create ticket type | ✅ Done | Full CRUD |
-| Update ticket | ✅ Done | Implemented |
-| Set pricing | ✅ Done | price, currency |
-| Inventory | ✅ Done | quantity tracking |
-| Sale windows | ✅ Done | sale_start, sale_end |
-| Order limits | ✅ Done | min/max per order |
-| Deactivate ticket | ✅ Done | is_active toggle |
-
-### Orders
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Create order | ✅ Done | With items, ticket reservation |
-| View order | ✅ Done | By ID, number, event, email |
-| Order expiry | ✅ Done | Background task every 60s |
-| Cancel order | ✅ Done | Release tickets |
-| Confirm order | ✅ Done | Mark paid/confirmed |
-| Guest checkout | ✅ Done | No auth required |
-
-### Payments
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Payment model | ✅ Done | Full Payment model |
-| Payment queries | ✅ Done | By ID, provider_id, order |
-| Create payment | ✅ Done | Initiated by frontend |
-| Webhook handling | ✅ Done | Stripe + Razorpay webhooks |
-| Payment status updates | ✅ Done | success/failed/refunded |
-| Refund processing | ✅ Done | Full/partial refund |
-| Stripe integration | 📋 To Do | Frontend SDK only |
-| Razorpay integration | 📋 To Do | Frontend SDK only |
-
-### Attendees
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| View attendees | ✅ Done | List + filters |
-| Search | ✅ Done | By name/email |
-| Check-in | ✅ Done | Status update (bool) |
-| Undo check-in | ✅ Done | Reset status |
-| Notes | ✅ Done | Add/update notes |
-| QR check-in | 📋 To Do | Scan QR code |
-| Export | 📋 To Do | CSV export |
-
-### Analytics
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Registration stats | 📋 To Do | Count + timeline |
-| Revenue reports | 📋 To Do | Earnings |
-| Ticket breakdown | 📋 To Do | By type |
-| Attendance rates | 📋 To Do | Check-in % |
-| Export reports | 📋 To Do | CSV/Excel |
-
-### Background Tasks
-
-| Task | Status | Notes |
-|------|--------|-------|
-| Order expiry | ✅ Done | asyncio task every 60s |
-| Token cleanup | ✅ Done | asyncio task every 1hr |
-| PDF generation | 📋 To Do | Tickets w/ QR |
-| Email sending | 📋 To Do | Queue emails |
-| Event reminders | 📋 To Do | 24hr before |
+## Legend
+- ✅ **Done** — implemented, tested, working
+- 🟡 **Partial** — exists but incomplete
+- ❌ **Not started** — not implemented
 
 ---
 
-## Frontend
+## BACKEND
 
-### Authentication Pages
+### Models (15 files, 14 tables)
 
-| Page | Status | Notes |
+| Model | Status | Notes |
+|-------|--------|-------|
+| User | ✅ | role=user/admin, is_superuser, relationships to Member/EventStaff/Order |
+| Organization | ✅ | Multi-tenant container with slug, settings |
+| Member | ✅ | Org membership: role=admin/member |
+| Event | ✅ | organization_id nullable, staff/ticket/order relationships |
+| EventStaff | ✅ | Links User directly to Event, role=organizer, is_owner flag |
+| Ticket | ✅ | Price/quantity/sold with check constraints |
+| Order | ✅ | Full order lifecycle with order_number generation |
+| OrderItem | ✅ | Join table between Order and Ticket |
+| Attendee | ✅ | Check-in workflow, custom data |
+| Payment | ✅ | Multi-provider (Razorpay done), refund support |
+| Follower | ✅ | Org follow/unfollow |
+| RefreshToken | ✅ | JWT rotation with revocation |
+| AuditLog | ✅ | Action history |
+| EmailLog | ✅ | Email delivery tracking |
+
+### GraphQL Schema
+
+| Area | Status | Notes |
 |------|--------|-------|
-| Login | ✅ Done | Implemented |
-| Register | ✅ Done | Implemented |
-| Forgot password | 📋 To Do | Reset flow |
+| Queries | ✅ | 21 queries: users, orgs, events, tickets, orders, attendees, payments |
+| Mutations | ✅ | 34 mutations: auth(6), user(3), org(6), event(5), ticket(3), order(3), attendee(3), payment(5) |
+| Auth mutations | ✅ | register, login, refresh_token, logout, logout_all, revoke_token |
+| RBAC on resolvers | 🟡 | `require_auth` on event mutations only. Most other mutations have no auth checks |
+| Event queries | ✅ | events, event, event_by_slug, event_tickets, available_tickets |
+| Org queries | ✅ | organizations, organization, organization_by_slug, members, followers |
+| Order queries | ✅ | orders, order, order_by_number |
+| Payment mutations | ✅ | create_payment_order, verify_payment (Razorpay) |
 
-### Dashboard
+### Services (8 services)
 
-| Page | Status | Notes |
-|------|--------|-------|
-| Dashboard home | ✅ Done | Basic layout |
-| Organization list | 📋 To Do | User's orgs |
+| Service | Status | Notes |
+|---------|--------|-------|
+| BaseService | ✅ | CRUD foundation |
+| UserService | ✅ | get_by_email, get_organizations, get_followers |
+| OrganizationService | ✅ | Members CRUD, followers, events lookup |
+| EventService | ✅ | plus event role checks (user_is_organizer, ensure_organizer) |
+| TicketService | ✅ | Reserve/release/check_availability with sold_quantity tracking |
+| OrderService | ✅ | Full lifecycle: create → confirm → cancel → expire, order_number generation |
+| AttendeeService | ✅ | Check-in/undo, search, stats |
+| PaymentService | ✅ | Create, mark success/failure, refund |
+| Mapping (model→GraphQL) | ✅ | 11 mappers |
 
-### Organization Management
+### Auth & RBAC
 
-| Page | Status | Notes |
-|------|--------|-------|
-| Create org | 📋 To Do | Form |
-| Org settings | 📋 To Do | Edit details |
-| Member list | 📋 To Do | Role controls |
-| Add member | 📋 To Do | Invite form |
+| Component | Status | Notes |
+|-----------|--------|-------|
+| JWT auth (access + refresh) | ✅ | 15-min access, 7-day refresh |
+| Password hashing (bcrypt) | ✅ | |
+| AuthContext | ✅ | Injected into GraphQL context |
+| require_auth decorator | ✅ | In rbac.py — pluggable module |
+| require_role decorator | ✅ | Hierarchy: user(0) < admin(1), superuser bypass |
+| check_event_role | ✅ | Low-level DB check |
+| require_event_role | ✅ | High-level resolver check |
+| PermissionDenied exception | ✅ | Custom exception class |
+| RBAC test suite | ✅ | 22 tests covering all decorators and checks |
 
-### Event Management
-
-| Page | Status | Notes |
-|------|--------|-------|
-| Event list | 📋 To Do | List view |
-| Create event | 📋 To Do | Multi-step form |
-| Edit event | 📋 To Do | Edit form |
-| Event settings | 📋 To Do | Visibility |
-
-### Page Builder
+### Missing Backend Features
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Builder UI | 📋 To Do | Drag-drop |
-| Component library | 📋 To Do | 15+ blocks |
-| Properties panel | 📋 To Do | Edit props |
-| Live preview | 📋 To Do | Desktop/mobile |
-| Theme system | 📋 To Do | Colors/fonts |
-| Save/publish | 📋 To Do | Export JSON |
-
-### Ticketing
-
-| Page | Status | Notes |
-|------|--------|-------|
-| Ticket list | 📋 To Do | Manage types |
-| Create ticket | 📋 To Do | Form |
-| Order list | 📋 To Do | View orders |
-
-### Checkout
-
-| Page | Status | Notes |
-|------|--------|-------|
-| Ticket selection | 📋 To Do | Choose tickets |
-| Attendee details | 📋 To Do | Per ticket |
-| Payment integration | 📋 To Do | See integration steps below |
-| Confirmation | 📋 To Do | Success page |
-
-### Payment Integration Steps (Frontend)
-
-1. **Load Razorpay Checkout SDK** in `<script>` tag:
-   ```html
-   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-   ```
-
-2. **Create payment order** on checkout submit:
-   ```graphql
-   mutation {
-     createPaymentOrder(orderId: "...", provider: "razorpay") {
-       providerOrderId   # razorpay_order_id
-       providerKeyId     # RAZORPAY_KEY_ID
-       orderId
-       orderNumber
-       amount            # in paise
-       currency
-     }
-   }
-   ```
-
-3. **Open Razorpay Checkout modal** with the response:
-   ```ts
-   const rzp = new Razorpay({
-     key: data.createPaymentOrder.providerKeyId,
-     order_id: data.createPaymentOrder.providerOrderId,
-     amount: data.createPaymentOrder.amount,
-     currency: data.createPaymentOrder.currency,
-     name: "OpenMeets",
-     prefill: { email: customerEmail, name: customerName },
-     handler: async (response) => {
-       // Step 4 — verify on backend
-     }
-   });
-   rzp.open();
-   ```
-
-4. **Verify payment** in the `handler` callback:
-   ```graphql
-   mutation {
-     verifyPayment(
-       orderId: "..."
-       providerPaymentId: response.razorpay_payment_id
-       providerOrderId: response.razorpay_order_id
-       signature: response.razorpay_signature
-       provider: "razorpay"
-     ) {
-       success
-       paymentStatus
-       message
-     }
-   }
-   ```
-
-5. **On success** (`verifyPayment.success === true`):
-   - Show confirmation page
-   - Redirect to order confirmation
-
-6. **Edge cases**:
-   - Payment modal dismissed → keep order in pending state (auto-expires in 15min)
-   - Network failure during verification → retry verifyPayment with same signature
-   - Webhook handles missed callbacks as backup (backend `POST /webhooks/razorpay`)
-
-### Attendee Management
-
-| Page | Status | Notes |
-|------|--------|-------|
-| Attendee list | 📋 To Do | Search + filter |
-| Export | 📋 To Do | Download |
-| Attendee details | 📋 To Do | View profile |
-
-### Check-in
-
-| Page | Status | Notes |
-|------|--------|-------|
-| Check-in scanner | 📋 To Do | QR scanner |
-| Manual search | 📋 To Do | Find attendee |
-| Check-in stats | 📋 To Do | Real-time counts |
-
-### Reports
-
-| Page | Status | Notes |
-|------|--------|-------|
-| Registration stats | 📋 To Do | Charts |
-| Revenue reports | 📋 To Do | Earnings |
-| Export | 📋 To Do | CSV download |
-
-### Public Pages
-
-| Page | Status | Notes |
-|------|--------|-------|
-| Event page | 📋 To Do | Dynamic from builder |
-| Ticket purchase | 📋 To Do | Checkout flow |
-| Confirmation | 📋 To Do | Tickets sent |
+| Password reset | ❌ | Not implemented |
+| Email verification | ❌ | `is_email_verified` field exists but no flow |
+| Stripe integration | ❌ | TODO mentions it, Razorpay done |
+| GraphQL types for AuditLog/EmailLog | ❌ | Models exist, no GraphQL types |
+| Auth decorators on most mutations | 🟡 | Only event mutations have require_auth |
+| Transfer event ownership mutation | ❌ | is_owner exists but no transfer endpoint |
 
 ---
 
-## Database Models
+## FRONTEND
 
-### Implemented Models
+### Pages/Routes
 
-- ✅ User (with role + is_superuser)
-- ✅ Organization
-- ✅ Member
-- ✅ Event
-- ✅ Ticket
-- ✅ Order
-- ✅ OrderItem
-- ✅ Attendee
-- ✅ Payment
-- ✅ RefreshToken
-- ✅ AuditLog
-- ✅ EmailLog
-- ✅ Follower
-- ✅ EventStaff
+| Route | Status | Notes |
+|-------|--------|-------|
+| `/` (Home) | ✅ | Hero, featured events, discovery grid, filters sidebar |
+| `/login` | ✅ | Email/password form |
+| `/register` | ✅ | Name/email/password form |
+| `/dashboard` | 🟡 | Stats cards, guest prompt when unauthed |
+| `/organizations` | ✅ | List with cards, create, detail, edit |
+| `/organizations/new` | ✅ | Create form with name/slug/description |
+| `/organizations/[id]` | ✅ | Detail with members, links |
+| `/organizations/[id]/edit` | ✅ | Edit form |
+| `/events` | ✅ | List with draft/published filter |
+| `/events/new` | ✅ | Create form with org selector, dates |
+| `/events/[id]` | ✅ | Detail with tickets, stats, builder link |
+| `/events/[id]/edit` | ✅ | Edit form |
+| `/event/[slug]` | ✅ | Public event page with tickets |
+| `/event/[slug]/checkout` | ✅ | Quantity selector + customer form + confirm |
+| `/attendees` | ✅ | Event selector, search, check-in table |
+| `/checkin` | ✅ | Search-as-you-type, one-click check-in |
+| `/reports` | ✅ | Revenue/orders/attendees stats + orders table |
+| `/builder/event/[id]` | ✅ | Lite builder: tickets CRUD + page blocks + preview |
 
-### To Be Implemented
+### Components
 
-- 📋 Invitation
-- 📋 Notification
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Button | ✅ | 6 variants, 5 sizes, loading state |
+| Input | ✅ | Label, error, bind:value |
+| Label | ✅ | |
+| Card (header/title/description/content) | ✅ | |
+| EventCard | ✅ | Image, date, venue, price, Get Tickets button |
+| AuthSlideOver | ✅ | Modal with login/register switching |
+| LoginForm | ✅ | Email/password, error display |
+| RegisterForm | ✅ | Name/email/password/confirm, validation |
+
+### Missing Components
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Select | ❌ | Listed in SPEC — using native HTML select instead |
+| Checkbox | ❌ | Listed in SPEC — using native HTML checkbox instead |
+| Modal | ❌ | AuthSlideOver covers modal needs |
+| Badge | ❌ | Listed in SPEC — inline styled spans used instead |
+| Spinner | ❌ | Listing SPEC — loading states use Button isLoading or pulse divs |
+
+### Services & Stores & GraphQL
+
+| Module | Status | Notes |
+|--------|--------|-------|
+| Auth service | ✅ | login, register, logout, refreshToken, getMe |
+| Event service | ✅ | listEvents, getEvent, getEventTickets, createEvent, updateEvent, deleteEvent, addOrganizer |
+| Organization service | ✅ | listOrganizations, getOrganization, getMembers, create, update, addMember |
+| Order service | ✅ | listOrders, getOrder, createOrder, confirmOrder |
+| Attendee service | ✅ | listAttendees, searchAttendees, checkIn, undoCheckIn |
+| Auth store | ✅ | Tokens in localStorage, derived isAuthenticated/currentUser |
+| Ambient auth | ✅ | `requireAuth(action)` — action gating without redirects |
+| GraphQL client | ✅ | urql, token injection via fetchOptions |
+| Auth GraphQL queries | ✅ | LOGIN, REGISTER, LOGOUT, REFRESH_TOKEN, GET_ME |
+| Event GraphQL queries | ✅ | EVENTS, EVENT, EVENT_BY_SLUG, EVENT_TICKETS, AVAILABLE_TICKETS, CREATE_EVENT, UPDATE_EVENT, DELETE_EVENT, ADD_EVENT_ORGANIZER |
+| Org GraphQL queries | ✅ | ORGANIZATIONS, ORGANIZATION, ORGANIZATION_MEMBERS, CREATE, UPDATE, ADD_MEMBER |
+| Order GraphQL queries | ✅ | ORDERS, ORDER, CREATE_ORDER, CONFIRM_ORDER |
+| Attendee GraphQL queries | ✅ | ATTENDEES, SEARCH_ATTENDEES, CHECK_IN, UNDO_CHECK_IN |
+| Ticket GraphQL queries | ✅ | CREATE_TICKET, UPDATE_TICKET, DELETE_TICKET |
+
+### Design & Styling
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Professional Event Suite palette | ✅ | Full color token set in app.css |
+| Inter font | ✅ | Loaded via Google Fonts |
+| Tailwind v4 | ✅ | With @tailwindcss/vite plugin |
+| Custom animations | ✅ | fade-in, slide-up, scale-in |
+| Typography system | ✅ | headline-xl/lg/md, body-lg/md, label-md/sm |
+| Responsive nav bar | ✅ | Desktop nav + mobile hamburger menu |
+| Glass-card utility | ✅ | backdrop-blur with white/80 background |
 
 ---
 
-## Priority Tasks
+## INFRASTRUCTURE
 
-### Immediate (This Week)
-
-1. ✅ Complete order + payment flow
-2. ✅ Implement attendee CRUD
-3. ✅ Auth system (JWT + RBAC)
-4. ✅ Background tasks (order expiry)
-5. 📋 Start frontend integration
-
-### Next (This Month)
-
-6. 📋 Frontend auth pages (login/register)
-7. 📋 Organization + event management UI
-8. 📋 Checkout flow (Stripe/Razorpay SDKs)
-9. 📋 Check-in system
-
-### Later (This Quarter)
-
-10. 📋 Page builder
-11. 📋 Email campaigns
-12. 📋 Analytics dashboard
-13. 📋 Notifications system
+| Area | Status | Notes |
+|------|--------|-------|
+| Docker Compose | ✅ | PostgreSQL + backend + frontend |
+| Migrations | ✅ | 3 Alembic migrations |
+| Seed data | ✅ | 11 users, 4 orgs, 15+ events, tickets, orders, attendees, payments |
+| Backend tests | ✅ | 86 tests (auth=11, rbac=23, services=30 + new RBAC tests) |
+| Frontend build | ✅ | 0 errors, 0 warnings |
+| CORS | ✅ | localhost:5173, localhost:5174 |
 
 ---
 
-## Notes
+## Overall Completion Estimate
 
-- Backend uses GraphQL (Strawberry) + FastAPI
-- Frontend uses Svelte + TypeScript
-- Database: PostgreSQL
-- Background tasks: asyncio scheduler (no Celery/Redis needed)
-- Payments: Stripe + Razorpay (frontend SDKs + backend webhooks)
-
----
-
-**End of Roadmap**
+| Layer | Estimate | Key Gap |
+|-------|----------|---------|
+| Backend models | 95% | Invitation, Notification models missing |
+| Backend API (GraphQL) | 70% | Password reset, email verification missing |
+| Backend auth/RBAC | 90% | RBAC extracted to module, tested, minor decorators missing on some mutations |
+| Backend payments | 60% | Only Razorpay, Stripe missing |
+| Frontend auth flow | 90% | Login/register/dashboard/ambient auth complete |
+| Frontend pages | 85% | All 15+ routes implemented (orgs, events, attendees, check-in, reports, public, builder) |
+| Frontend components | 50% | Basic UI kit, event card, all page components; missing dedicated Select/Modal/Badge/Spinner |
+| Frontend API integration | 80% | All backend features have frontend GraphQL queries and services wired |
+| Tests | 70% | Backend 86 tests, frontend 0 tests |
