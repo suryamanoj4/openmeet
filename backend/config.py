@@ -30,8 +30,12 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_username: str | None = None
     smtp_password: str | None = None
+    smtp_use_tls: bool = True
     from_email: str | None = None
     from_name: str = "OpenMeets"
+
+    # Frontend (used in email links)
+    frontend_url: str = "http://localhost:5173"
 
     # Razorpay
     razorpay_key_id: str | None = None
