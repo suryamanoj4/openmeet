@@ -1,6 +1,6 @@
 import { graphqlClient } from '$lib/graphql/client';
 import { authStore } from '$lib/stores/auth';
-import { LOGIN, REGISTER, LOGOUT, REFRESH_TOKEN, GET_ME } from '$lib/graphql/queries/auth';
+import { LOGIN, REGISTER, LOGOUT, REFRESH_TOKEN, GET_ME, REQUEST_PASSWORD_RESET, CONFIRM_PASSWORD_RESET, SEND_EMAIL_VERIFICATION, VERIFY_EMAIL } from '$lib/graphql/queries/auth';
 import type { User } from '$lib/graphql/types';
 
 interface MeResponse {
@@ -147,4 +147,44 @@ export async function getMe(): Promise<User | null> {
 	}
 
 	return result.data.me;
+}
+
+export async function requestPasswordReset(email: string): Promise<boolean> {
+	const result = await graphqlClient
+		.mutation<{ request_password_reset: boolean }, { input: { email: string } }>(
+			REQUEST_PASSWORD_RESET,
+			{ input: { email } }
+		)
+		.toPromise();
+	return result.data?.request_password_reset ?? false;
+}
+
+export async function confirmPasswordReset(token: string, newPassword: string): Promise<boolean> {
+	const result = await graphqlClient
+		.mutation<{ confirm_password_reset: boolean }, { input: { token: string; newPassword: string } }>(
+			CONFIRM_PASSWORD_RESET,
+			{ input: { token, new_password: newPassword as never } }
+		)
+		.toPromise();
+	return result.data?.confirm_password_reset ?? false;
+}
+
+export async function sendEmailVerification(): Promise<boolean> {
+	const result = await graphqlClient
+		.mutation<{ send_email_verification: boolean }, Record<string, never>>(
+			SEND_EMAIL_VERIFICATION,
+			{}
+		)
+		.toPromise();
+	return result.data?.send_email_verification ?? false;
+}
+
+export async function verifyEmail(token: string): Promise<boolean> {
+	const result = await graphqlClient
+		.mutation<{ verify_email: boolean }, { input: { token: string } }>(
+			VERIFY_EMAIL,
+			{ input: { token } }
+		)
+		.toPromise();
+	return result.data?.verify_email ?? false;
 }

@@ -153,3 +153,49 @@ export const ADD_EVENT_ORGANIZER = `
 		}
 	}
 `;
+
+export const TRANSFER_EVENT_OWNERSHIP = `
+	mutation TransferEventOwnership($event_id: UUID!, $new_owner_id: UUID!) {
+		transfer_event_ownership: transferEventOwnership(eventId: $event_id, newOwnerId: $new_owner_id)
+	}
+`;
+
+export const EVENT_PAGE = `
+	query EventPage($event_id: UUID!) {
+		event_page: eventPage(eventId: $event_id) {
+			id
+			event_id: eventId
+			blocks
+			is_published: isPublished
+			published_at: publishedAt
+		}
+	}
+`;
+
+export const SAVE_EVENT_PAGE = `
+	mutation SaveEventPage($event_id: UUID!, $input: UpdateEventPageInput!) {
+		save_event_page: saveEventPage(eventId: $event_id, input: $input) {
+			id
+			blocks
+			is_published: isPublished
+		}
+	}
+`;
+
+export const PUBLISH_EVENT_PAGE = `
+	mutation PublishEventPage($event_id: UUID!) {
+		publish_event_page: publishEventPage(eventId: $event_id) {
+			id
+			is_published: isPublished
+		}
+	}
+`;
+
+export const UNPUBLISH_EVENT_PAGE = `
+	mutation UnpublishEventPage($event_id: UUID!) {
+		unpublish_event_page: unpublishEventPage(eventId: $event_id) {
+			id
+			is_published: isPublished
+		}
+	}
+`;
