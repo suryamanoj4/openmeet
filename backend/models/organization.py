@@ -37,6 +37,10 @@ class Organization(OrganizationBase, table=True):
     followers: list["Follower"] = Relationship(back_populates="organization", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     events: list["Event"] = Relationship(back_populates="organization", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     audit_logs: list["AuditLog"] = Relationship(back_populates="organization")
+    invitations: list["Invitation"] = Relationship(
+        back_populates="organization",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
     def __repr__(self) -> str:
         return f"<Organization {self.slug}>"

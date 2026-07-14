@@ -59,6 +59,10 @@ class User(UserBase, table=True):
     orders: list["Order"] = Relationship(back_populates="creator", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     audit_logs: list["AuditLog"] = Relationship(back_populates="user")
     refresh_tokens: list["RefreshToken"] = Relationship(back_populates="user")
+    notifications: list["Notification"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"

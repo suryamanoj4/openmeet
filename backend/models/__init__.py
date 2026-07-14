@@ -5,9 +5,12 @@ from models.attendee import Attendee
 from models.base import BaseModel
 from models.email_log import EmailLog
 from models.event import Event
+from models.event_page import EventPage
 from models.event_staff import EventStaff
 from models.follower import Follower
+from models.invitation import Invitation
 from models.member import Member
+from models.notification import Notification
 from models.order import Order
 from models.order_item import OrderItem
 from models.organization import Organization
@@ -32,4 +35,7 @@ __all__ = [
     "AuditLog",
     "RefreshToken",
     "EmailLog",
+    "Invitation",
+    "Notification",
+    "EventPage",
 ]

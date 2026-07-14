@@ -54,6 +54,7 @@ class Event(EventBase, table=True):
     staff_assignments: list["EventStaff"] = Relationship(back_populates="event", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     tickets: list["Ticket"] = Relationship(back_populates="event", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     orders: list["Order"] = Relationship(back_populates="event", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    pages: list["EventPage"] = Relationship(back_populates="event", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
     def __repr__(self) -> str:
         return f"<Event {self.slug}>"
