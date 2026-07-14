@@ -19,6 +19,11 @@ from gql_schema.types import (
     EventStaffType,
     PaymentType,
     OrderItemType,
+    AuditLogType,
+    EmailLogType,
+    InvitationType,
+    NotificationType,
+    EventPageType,
 )
 from gql_schema.services import (
     UserService,
@@ -28,7 +33,10 @@ from gql_schema.services import (
     OrderService,
     AttendeeService,
     PaymentService,
+    NotificationService,
+    EventPageService,
 )
+from models import AuditLog, EmailLog, Invitation, Notification
 from gql_schema.services.mapping import (
     user_to_type,
     organization_to_type,
@@ -41,6 +49,11 @@ from gql_schema.services.mapping import (
     member_to_type,
     follower_to_type,
     event_staff_to_type,
+    audit_log_to_type,
+    email_log_to_type,
+    invitation_to_type,
+    notification_to_type,
+    event_page_to_type,
 )
 
 
@@ -357,6 +370,119 @@ class Query:
         if not payment:
             return None
         return PaymentType(**payment_to_type(payment))
+
+    @strawberry.field
+    async def audit_logs(
+        self,
+        info: Info,
+        user_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[AuditLogType]:
+        session = get_session(info)
+        from sqlmodel import select as _select
+        query = _select(AuditLog)
+        if user_id:
+            query = query.where(AuditLog.user_id == user_id)
+        if organization_id:
+            query = query.where(AuditLog.organization_id == organization_id)
+        query = query.order_by(AuditLog.created_at.desc()).offset(skip).limit(limit)
+        result = await session.exec(query)
+        return [AuditLogType(**audit_log_to_type(log)) for log in result.all()]
+
+    @strawberry.field
+    async def email_logs(
+        self,
+        info: Info,
+        recipient_email: Optional[str] = None,
+        template_name: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[EmailLogType]:
+        session = get_session(info)
+        from sqlmodel import select as _select
+        query = _select(EmailLog)
+        if recipient_email:
+            query = query.where(EmailLog.recipient_email == recipient_email)
+        if template_name:
+            query = query.where(EmailLog.template_name == template_name)
+        query = query.order_by(EmailLog.created_at.desc()).offset(skip).limit(limit)
+        result = await session.exec(query)
+        return [EmailLogType(**email_log_to_type(log)) for log in result.all()]
+
+    @strawberry.field
+    async def notifications(
+        self,
+        info: Info,
+        unread_only: bool = False,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> List[NotificationType]:
+        auth_user = get_auth_user(info)
+        if not auth_user:
+            return []
+        session = get_session(info)
+        service = NotificationService(session)
+        notifs = await service.get_for_user(auth_user.user_id, unread_only=unread_only, skip=skip, limit=limit)
+        return [NotificationType(**notification_to_type(n)) for n in notifs]
+
+    @strawberry.field
+    async def notification_unread_count(
+        self,
+        info: Info,
+    ) -> int:
+        auth_user = get_auth_user(info)
+        if not auth_user:
+            return 0
+        session = get_session(info)
+        service = NotificationService(session)
+        return await service.get_unread_count(auth_user.user_id)
+
+    @strawberry.field
+    async def invitations(
+        self,
+        info: Info,
+        organization_id: UUID,
+        status: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[InvitationType]:
+        session = get_session(info)
+        from sqlmodel import select as _select
+        query = _select(Invitation).where(Invitation.organization_id == organization_id)
+        if status:
+            query = query.where(Invitation.status == status)
+        query = query.order_by(Invitation.created_at.desc()).offset(skip).limit(limit)
+        result = await session.exec(query)
+        return [InvitationType(**invitation_to_type(inv)) for inv in result.all()]
+
+    @strawberry.field
+    async def invitation_by_token(
+        self,
+        info: Info,
+        token: str,
+    ) -> Optional[InvitationType]:
+        session = get_session(info)
+        from sqlmodel import select as _select
+        result = await session.exec(_select(Invitation).where(Invitation.token == token))
+        inv = result.first()
+        if not inv:
+            return None
+        return InvitationType(**invitation_to_type(inv))
+
+    @strawberry.field
+    async def event_page(
+        self,
+        info: Info,
+        event_id: UUID,
+    ) -> Optional[EventPageType]:
+        session = get_session(info)
+        service = EventPageService(session)
+        page = await service.get_by_event(event_id)
+        if not page:
+            return None
+        return EventPageType(**event_page_to_type(page))
 
 
 schema = strawberry.Schema(query=Query)
