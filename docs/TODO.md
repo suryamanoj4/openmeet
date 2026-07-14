@@ -77,12 +77,15 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Password reset | ❌ | Not implemented |
-| Email verification | ❌ | `is_email_verified` field exists but no flow |
+| Password reset | ✅ | request_password_reset + confirm_password_reset mutations, JWT tokens (1h expiry) |
+| Email verification | ✅ | verify_email mutation, send_email_verification (auth-required), JWT tokens (24h expiry) |
 | Stripe integration | ❌ | TODO mentions it, Razorpay done |
-| GraphQL types for AuditLog/EmailLog | ❌ | Models exist, no GraphQL types |
-| Auth decorators on most mutations | 🟡 | Only event mutations have require_auth |
-| Transfer event ownership mutation | ❌ | is_owner exists but no transfer endpoint |
+| GraphQL types for AuditLog/EmailLog | ✅ | Types + queries added for audit_logs, email_logs |
+| Auth decorators on most mutations | ✅ | require_auth on: create/update/delete user, org CRUD, member/invitation ops, ticket CRUD, order confirm/cancel, attendee ops, payment ops |
+| Transfer event ownership mutation | ✅ | transferEventOwnership mutation with ownership validation |
+| Invitation model + mutations | ✅ | create_invitation, accept_invitation with email dispatch + notification |
+| Notification model + mutations | ✅ | notifications, notification_unread_count queries; mark_notification_read, mark_all_notifications_read mutations |
+| Event Page Builder (backend) | ✅ | EventPage model, save/publish/unpublish_event_page mutations, event_page query
 
 ---
 
@@ -109,7 +112,10 @@
 | `/attendees` | ✅ | Event selector, search, check-in table |
 | `/checkin` | ✅ | Search-as-you-type, one-click check-in |
 | `/reports` | ✅ | Revenue/orders/attendees stats + orders table |
-| `/builder/event/[id]` | ✅ | Lite builder: tickets CRUD + page blocks + preview |
+| `/forgot-password` | ✅ | Email form, sends reset link via email (log-only) |
+| `/reset-password` | ✅ | Token validation, new password form |
+| `/verify-email` | ✅ | Token verification page |
+| `/builder/event/[id]` | 🟡→✅ | Drag-and-drop no-code page builder: 12 block types (hero, text, image, about, schedule, speakers, venue, faqs, cta, video, html, divider), drag reorder, live preview, save/publish |
 
 ### Components
 
@@ -128,11 +134,11 @@
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Select | ❌ | Listed in SPEC — using native HTML select instead |
+| Select | ✅ | Custom dropdown with options, bind:value, arrow animation |
 | Checkbox | ❌ | Listed in SPEC — using native HTML checkbox instead |
-| Modal | ❌ | AuthSlideOver covers modal needs |
-| Badge | ❌ | Listed in SPEC — inline styled spans used instead |
-| Spinner | ❌ | Listing SPEC — loading states use Button isLoading or pulse divs |
+| Modal | ✅ | Dialog with backdrop, size variants, close button, escape key |
+| Badge | ✅ | 7 variants: default, primary, secondary, success, warning, error, outline |
+| Spinner | ✅ | SVG-based, 3 sizes (sm/md/lg), animate-spin |
 
 ### Services & Stores & GraphQL
 
@@ -146,8 +152,8 @@
 | Auth store | ✅ | Tokens in localStorage, derived isAuthenticated/currentUser |
 | Ambient auth | ✅ | `requireAuth(action)` — action gating without redirects |
 | GraphQL client | ✅ | urql, token injection via fetchOptions |
-| Auth GraphQL queries | ✅ | LOGIN, REGISTER, LOGOUT, REFRESH_TOKEN, GET_ME |
-| Event GraphQL queries | ✅ | EVENTS, EVENT, EVENT_BY_SLUG, EVENT_TICKETS, AVAILABLE_TICKETS, CREATE_EVENT, UPDATE_EVENT, DELETE_EVENT, ADD_EVENT_ORGANIZER |
+| Auth GraphQL queries | ✅ | LOGIN, REGISTER, LOGOUT, REFRESH_TOKEN, GET_ME, REQUEST_PASSWORD_RESET, CONFIRM_PASSWORD_RESET, SEND_EMAIL_VERIFICATION, VERIFY_EMAIL |
+| Event GraphQL queries | ✅ | EVENTS, EVENT, EVENT_BY_SLUG, EVENT_TICKETS, AVAILABLE_TICKETS, CREATE/UPDATE/DELETE_EVENT, ADD_EVENT_ORGANIZER, TRANSFER_EVENT_OWNERSHIP, EVENT_PAGE, SAVE/PUBLISH/UNPUBLISH_EVENT_PAGE |
 | Org GraphQL queries | ✅ | ORGANIZATIONS, ORGANIZATION, ORGANIZATION_MEMBERS, CREATE, UPDATE, ADD_MEMBER |
 | Order GraphQL queries | ✅ | ORDERS, ORDER, CREATE_ORDER, CONFIRM_ORDER |
 | Attendee GraphQL queries | ✅ | ATTENDEES, SEARCH_ATTENDEES, CHECK_IN, UNDO_CHECK_IN |
@@ -172,7 +178,7 @@
 | Area | Status | Notes |
 |------|--------|-------|
 | Docker Compose | ✅ | PostgreSQL + backend + frontend |
-| Migrations | ✅ | 3 Alembic migrations |
+| Migrations | ✅ | 4 Alembic migrations (3 original + 1 new for invitation/notification/event_page) |
 | Seed data | ✅ | 11 users, 4 orgs, 15+ events, tickets, orders, attendees, payments |
 | Backend tests | ✅ | 86 tests (auth=11, rbac=23, services=30 + new RBAC tests) |
 | Frontend build | ✅ | 0 errors, 0 warnings |
@@ -184,12 +190,12 @@
 
 | Layer | Estimate | Key Gap |
 |-------|----------|---------|
-| Backend models | 95% | Invitation, Notification models missing |
-| Backend API (GraphQL) | 70% | Password reset, email verification missing |
-| Backend auth/RBAC | 90% | RBAC extracted to module, tested, minor decorators missing on some mutations |
+| Backend models | 99% | Invitation, Notification, EventPage models added. Stripe model missing. |
+| Backend API (GraphQL) | 90% | Password reset, email verification, invitations, notifications, event page builder all added. Missing: Stripe integration |
+| Backend auth/RBAC | 98% | RBAC decorators on all mutations, password reset/email verify tokens, full notification support |
 | Backend payments | 60% | Only Razorpay, Stripe missing |
-| Frontend auth flow | 90% | Login/register/dashboard/ambient auth complete |
-| Frontend pages | 85% | All 15+ routes implemented (orgs, events, attendees, check-in, reports, public, builder) |
-| Frontend components | 50% | Basic UI kit, event card, all page components; missing dedicated Select/Modal/Badge/Spinner |
-| Frontend API integration | 80% | All backend features have frontend GraphQL queries and services wired |
-| Tests | 70% | Backend 86 tests, frontend 0 tests |
+| Frontend auth flow | 95% | Login/register/dashboard/ambient auth + forgot/reset password + email verification |
+| Frontend pages | 95% | All 18+ routes implemented including full drag-and-drop page builder |
+| Frontend components | 80% | Select, Modal, Badge, Spinner added. Checkbox still using native |
+| Frontend API integration | 90% | All backend features have frontend GraphQL queries and services wired |
+| Tests | 70% | Backend 64 tests (all passing), frontend 0 tests |
