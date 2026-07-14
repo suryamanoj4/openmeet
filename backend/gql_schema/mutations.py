@@ -1,11 +1,13 @@
 """GraphQL Mutation definitions."""
 
+import uuid
+from datetime import datetime, timedelta
 from typing import Optional
-from uuid import UUID
 
 import strawberry
 from strawberry import Info
 
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from auth import (
@@ -17,8 +19,14 @@ from auth import (
     verify_refresh_token,
     revoke_refresh_token,
     revoke_all_user_tokens,
+    create_password_reset_token,
+    verify_password_reset_token,
+    create_email_verification_token,
+    verify_email_verification_token,
 )
-from rbac import require_auth, PermissionDenied
+from config import settings
+from email_service import send_password_reset_email, send_email_verification_email, send_invitation_email
+from rbac import require_auth, require_role, PermissionDenied
 from payment_provider import get_provider
 from gql_schema.types import (
     UserType,
@@ -29,6 +37,11 @@ from gql_schema.types import (
     AttendeeType,
     PaymentType,
     EventStaffType,
+    AuditLogType,
+    EmailLogType,
+    InvitationType,
+    NotificationType,
+    EventPageType,
 )
 from gql_schema.types.auth import AuthPayload, RefreshPayload
 from gql_schema.types.payment_provider import PaymentOrderPayload, PaymentVerificationResult
@@ -42,10 +55,16 @@ from gql_schema.inputs import (
     CreateTicketInput,
     UpdateTicketInput,
     CreateOrderInput,
-    UpdateOrderInput,
     OrderItemInput,
+    UpdateEventPageInput,
 )
-from gql_schema.inputs.auth_input import LoginInput, RegisterInput
+from gql_schema.inputs.auth_input import (
+    LoginInput,
+    RegisterInput,
+    PasswordResetRequestInput,
+    PasswordResetConfirmInput,
+    EmailVerificationInput,
+)
 from gql_schema.services import (
     UserService,
     OrganizationService,
@@ -54,6 +73,8 @@ from gql_schema.services import (
     OrderService,
     AttendeeService,
     PaymentService,
+    NotificationService,
+    EventPageService,
 )
 from gql_schema.services.mapping import (
     user_to_type,
@@ -64,8 +85,13 @@ from gql_schema.services.mapping import (
     attendee_to_type,
     payment_to_type,
     event_staff_to_type,
+    audit_log_to_type,
+    email_log_to_type,
+    invitation_to_type,
+    notification_to_type,
+    event_page_to_type,
 )
-from models import User, Organization, Event, Ticket, EventStaff
+from models import User, Organization, Event, Ticket, EventStaff, AuditLog, EmailLog, Invitation, Notification, EventPage
 
 
 def get_session(info: Info) -> AsyncSession:
@@ -81,7 +107,9 @@ def get_auth_user(info: Info):
 
 @strawberry.type
 class Mutation:
-    # ----- Auth mutations -----
+    # ================================================================
+    # Auth mutations
+    # ================================================================
 
     @strawberry.mutation
     async def register(
@@ -192,21 +220,102 @@ class Mutation:
         return result
 
     @strawberry.mutation
+    @require_auth
     async def logout_all(
         self,
         info: Info,
     ) -> bool:
         auth_user = get_auth_user(info)
-        if not auth_user:
-            raise PermissionDenied("Authentication required")
-
         session = get_session(info)
         await revoke_all_user_tokens(session, auth_user.user_id)
         await session.commit()
         return True
 
-    # ----- User mutations -----
     @strawberry.mutation
+    async def request_password_reset(
+        self,
+        info: Info,
+        input: PasswordResetRequestInput,
+    ) -> bool:
+        session = get_session(info)
+        service = UserService(session)
+        user = await service.get_by_email(input.email)
+
+        if user:
+            token = create_password_reset_token(user.id, user.email)
+            reset_url = f"{settings.frontend_url}/auth/reset-password?token={token}"
+            await send_password_reset_email(session, user.email, reset_url, user.first_name or "")
+            await session.commit()
+        return True
+
+    @strawberry.mutation
+    async def confirm_password_reset(
+        self,
+        info: Info,
+        input: PasswordResetConfirmInput,
+    ) -> bool:
+        session = get_session(info)
+        payload = verify_password_reset_token(input.token)
+        if not payload:
+            raise ValueError("Invalid or expired reset token")
+
+        user_id = uuid.UUID(payload["sub"])
+        user = await session.get(User, user_id)
+        if not user:
+            raise ValueError("User not found")
+
+        user.password_hash = hash_password(input.new_password)
+        await revoke_all_user_tokens(session, user_id)
+        await session.commit()
+        return True
+
+    @strawberry.mutation
+    @require_auth
+    async def send_email_verification(
+        self,
+        info: Info,
+    ) -> bool:
+        auth_user = get_auth_user(info)
+        session = get_session(info)
+        user = await session.get(User, auth_user.user_id)
+
+        if not user:
+            raise ValueError("User not found")
+        if user.is_email_verified:
+            raise ValueError("Email already verified")
+
+        token = create_email_verification_token(user.id, user.email)
+        verify_url = f"{settings.frontend_url}/auth/verify-email?token={token}"
+        await send_email_verification_email(session, user.email, verify_url, user.first_name or "")
+        await session.commit()
+        return True
+
+    @strawberry.mutation
+    async def verify_email(
+        self,
+        info: Info,
+        input: EmailVerificationInput,
+    ) -> bool:
+        session = get_session(info)
+        payload = verify_email_verification_token(input.token)
+        if not payload:
+            raise ValueError("Invalid or expired verification token")
+
+        user_id = uuid.UUID(payload["sub"])
+        user = await session.get(User, user_id)
+        if not user:
+            raise ValueError("User not found")
+
+        user.is_email_verified = True
+        await session.commit()
+        return True
+
+    # ================================================================
+    # User mutations
+    # ================================================================
+
+    @strawberry.mutation
+    @require_auth
     async def create_user(
         self,
         info: Info,
@@ -227,14 +336,20 @@ class Mutation:
         return UserType(**user_to_type(user))
 
     @strawberry.mutation
+    @require_auth
     async def update_user(
         self,
         info: Info,
-        id: UUID,
+        id: uuid.UUID,
         input: UpdateUserInput,
     ) -> Optional[UserType]:
+        auth_user = get_auth_user(info)
         session = get_session(info)
         service = UserService(session)
+
+        if auth_user.user_id != id and not auth_user.is_superuser:
+            raise PermissionDenied("You can only update your own profile")
+
         user = await service.get_by_id(id)
         if not user:
             return None
@@ -254,10 +369,12 @@ class Mutation:
         return UserType(**user_to_type(user))
 
     @strawberry.mutation
+    @require_auth
+    @require_role("admin")
     async def delete_user(
         self,
         info: Info,
-        id: UUID,
+        id: uuid.UUID,
     ) -> bool:
         session = get_session(info)
         service = UserService(session)
@@ -268,13 +385,19 @@ class Mutation:
         await session.commit()
         return True
 
+    # ================================================================
+    # Organization mutations
+    # ================================================================
+
     @strawberry.mutation
+    @require_auth
     async def create_organization(
         self,
         info: Info,
         input: CreateOrganizationInput,
     ) -> OrganizationType:
         session = get_session(info)
+        auth_user = get_auth_user(info)
         service = OrganizationService(session)
         org = await service.create(
             Organization,
@@ -286,18 +409,26 @@ class Mutation:
             social_links=input.social_links,
             settings=input.settings,
         )
+        await service.add_member(org.id, auth_user.user_id, "admin")
         await session.commit()
         return OrganizationType(**organization_to_type(org))
 
     @strawberry.mutation
+    @require_auth
     async def update_organization(
         self,
         info: Info,
-        id: UUID,
+        id: uuid.UUID,
         input: UpdateOrganizationInput,
     ) -> Optional[OrganizationType]:
         session = get_session(info)
+        auth_user = get_auth_user(info)
         service = OrganizationService(session)
+
+        member = await service.get_member(id, auth_user.user_id)
+        if not member or member.role != "admin":
+            raise PermissionDenied("Only org admins can update the organization")
+
         org = await service.get_by_id(id)
         if not org:
             return None
@@ -321,13 +452,20 @@ class Mutation:
         return OrganizationType(**organization_to_type(org))
 
     @strawberry.mutation
+    @require_auth
     async def delete_organization(
         self,
         info: Info,
-        id: UUID,
+        id: uuid.UUID,
     ) -> bool:
         session = get_session(info)
+        auth_user = get_auth_user(info)
         service = OrganizationService(session)
+
+        member = await service.get_member(id, auth_user.user_id)
+        if not member or member.role != "admin":
+            raise PermissionDenied("Only org admins can delete the organization")
+
         org = await service.get_by_id(id)
         if not org:
             return False
@@ -336,15 +474,22 @@ class Mutation:
         return True
 
     @strawberry.mutation
+    @require_auth
     async def add_organization_member(
         self,
         info: Info,
-        organization_id: UUID,
-        user_id: UUID,
+        organization_id: uuid.UUID,
+        user_id: uuid.UUID,
         role: str = "member",
     ) -> bool:
         session = get_session(info)
+        auth_user = get_auth_user(info)
         service = OrganizationService(session)
+
+        member = await service.get_member(organization_id, auth_user.user_id)
+        if not member or member.role != "admin":
+            raise PermissionDenied("Only org admins can add members")
+
         try:
             await service.add_member(organization_id, user_id, role)
             await session.commit()
@@ -353,41 +498,143 @@ class Mutation:
             return False
 
     @strawberry.mutation
+    @require_auth
     async def remove_organization_member(
         self,
         info: Info,
-        organization_id: UUID,
-        user_id: UUID,
+        organization_id: uuid.UUID,
+        user_id: uuid.UUID,
     ) -> bool:
         session = get_session(info)
+        auth_user = get_auth_user(info)
         service = OrganizationService(session)
+
+        member = await service.get_member(organization_id, auth_user.user_id)
+        if not member or member.role != "admin":
+            raise PermissionDenied("Only org admins can remove members")
+
         result = await service.remove_member(organization_id, user_id)
         await session.commit()
         return result
 
     @strawberry.mutation
+    @require_auth
     async def follow_organization(
         self,
         info: Info,
-        organization_id: UUID,
-        user_id: UUID,
+        organization_id: uuid.UUID,
+        user_id: uuid.UUID,
     ) -> bool:
         session = get_session(info)
+        auth_user = get_auth_user(info)
+        if auth_user.user_id != user_id and not auth_user.is_superuser:
+            raise PermissionDenied("You can only follow on your own behalf")
         service = OrganizationService(session)
         await service.add_follower(organization_id, user_id)
         await session.commit()
         return True
 
     @strawberry.mutation
+    @require_auth
     async def unfollow_organization(
         self,
         info: Info,
-        organization_id: UUID,
-        user_id: UUID,
+        organization_id: uuid.UUID,
+        user_id: uuid.UUID,
     ) -> bool:
         session = get_session(info)
+        auth_user = get_auth_user(info)
+        if auth_user.user_id != user_id and not auth_user.is_superuser:
+            raise PermissionDenied("You can only unfollow on your own behalf")
         service = OrganizationService(session)
         return await service.remove_follower(organization_id, user_id)
+
+    # ================================================================
+    # Invitation mutations
+    # ================================================================
+
+    @strawberry.mutation
+    @require_auth
+    async def create_invitation(
+        self,
+        info: Info,
+        organization_id: uuid.UUID,
+        email: str,
+        role: str = "member",
+    ) -> InvitationType:
+        session = get_session(info)
+        auth_user = get_auth_user(info)
+
+        org_service = OrganizationService(session)
+        member = await org_service.get_member(organization_id, auth_user.user_id)
+        if not member or member.role != "admin":
+            raise PermissionDenied("Only org admins can create invitations")
+
+        token = str(uuid.uuid4()) + "." + str(uuid.uuid4())
+        expires_at = datetime.utcnow() + timedelta(days=7)
+
+        invitation = Invitation(
+            organization_id=organization_id,
+            email=email,
+            role=role,
+            token=token,
+            invited_by=auth_user.user_id,
+            expires_at=expires_at,
+        )
+        session.add(invitation)
+        await session.flush()
+
+        org = await org_service.get_by_id(organization_id)
+        invite_url = f"{settings.frontend_url}/auth/accept-invitation?token={token}"
+        await send_invitation_email(session, email, org.name if org else "Organization", invite_url)
+
+        await session.commit()
+        return InvitationType(**invitation_to_type(invitation))
+
+    @strawberry.mutation
+    @require_auth
+    async def accept_invitation(
+        self,
+        info: Info,
+        token: str,
+    ) -> bool:
+        session = get_session(info)
+        auth_user = get_auth_user(info)
+
+        result = await session.exec(
+            select(Invitation).where(Invitation.token == token, Invitation.status == "pending")
+        )
+        invitation = result.first()
+        if not invitation:
+            raise ValueError("Invalid or expired invitation")
+        if invitation.expires_at < datetime.utcnow():
+            invitation.status = "expired"
+            await session.commit()
+            raise ValueError("Invitation has expired")
+        if invitation.email != auth_user.user.email:
+            raise ValueError("This invitation is for a different email address")
+
+        invitation.status = "accepted"
+        invitation.accepted_by = auth_user.user_id
+        invitation.accepted_at = datetime.utcnow()
+
+        org_service = OrganizationService(session)
+        await org_service.add_member(invitation.organization_id, auth_user.user_id, invitation.role)
+
+        notif_service = NotificationService(session)
+        await notif_service.create(
+            user_id=invitation.invited_by,
+            notification_type="invitation_accepted",
+            title="Invitation Accepted",
+            message=f"{auth_user.user.email} accepted your invitation",
+        )
+
+        await session.commit()
+        return True
+
+    # ================================================================
+    # Event mutations
+    # ================================================================
 
     @strawberry.mutation
     @require_auth
@@ -400,7 +647,6 @@ class Mutation:
         auth_user = get_auth_user(info)
         event_service = EventService(session)
 
-        # If organization_id provided, verify user is admin of that org
         if input.organization_id:
             org_service = OrganizationService(session)
             member = await org_service.get_member(input.organization_id, auth_user.user_id)
@@ -437,7 +683,6 @@ class Mutation:
         )
         await session.flush()
 
-        # Auto-create EventStaff record as owner-organizer
         await event_service.add_organizer(
             event_id=event.id,
             user_id=auth_user.user_id,
@@ -453,7 +698,7 @@ class Mutation:
     async def update_event(
         self,
         info: Info,
-        id: UUID,
+        id: uuid.UUID,
         input: UpdateEventInput,
     ) -> Optional[EventType]:
         session = get_session(info)
@@ -476,7 +721,7 @@ class Mutation:
     async def delete_event(
         self,
         info: Info,
-        id: UUID,
+        id: uuid.UUID,
     ) -> bool:
         session = get_session(info)
         auth_user = get_auth_user(info)
@@ -496,8 +741,8 @@ class Mutation:
     async def add_event_organizer(
         self,
         info: Info,
-        event_id: UUID,
-        user_id: UUID,
+        event_id: uuid.UUID,
+        user_id: uuid.UUID,
     ) -> EventStaffType:
         session = get_session(info)
         auth_user = get_auth_user(info)
@@ -519,8 +764,8 @@ class Mutation:
     async def remove_event_organizer(
         self,
         info: Info,
-        event_id: UUID,
-        user_id: UUID,
+        event_id: uuid.UUID,
+        user_id: uuid.UUID,
     ) -> bool:
         session = get_session(info)
         auth_user = get_auth_user(info)
@@ -544,14 +789,72 @@ class Mutation:
         await session.commit()
         return True
 
-    # ----- Ticket mutations -----
     @strawberry.mutation
+    @require_auth
+    async def transfer_event_ownership(
+        self,
+        info: Info,
+        event_id: uuid.UUID,
+        new_owner_id: uuid.UUID,
+    ) -> bool:
+        session = get_session(info)
+        auth_user = get_auth_user(info)
+        service = EventService(session)
+
+        await service.ensure_organizer(event_id, auth_user.user_id)
+
+        old_owner = await session.exec(
+            select(EventStaff).where(
+                EventStaff.event_id == event_id,
+                EventStaff.user_id == auth_user.user_id,
+                EventStaff.is_owner == True,
+                EventStaff.is_active == True,
+            )
+        )
+
+        new_owner_staff = await session.exec(
+            select(EventStaff).where(
+                EventStaff.event_id == event_id,
+                EventStaff.user_id == new_owner_id,
+                EventStaff.is_active == True,
+            )
+        )
+
+        old = old_owner.first()
+        new = new_owner_staff.first()
+
+        if not old:
+            raise PermissionDenied("Only the current owner can transfer ownership")
+
+        if not new:
+            new = await service.add_organizer(
+                event_id=event_id,
+                user_id=new_owner_id,
+                assigned_by=auth_user.user_id,
+                is_owner=False,
+            )
+
+        old.is_owner = False
+        new.is_owner = True
+        await session.commit()
+        return True
+
+    # ================================================================
+    # Ticket mutations
+    # ================================================================
+
+    @strawberry.mutation
+    @require_auth
     async def create_ticket(
         self,
         info: Info,
         input: CreateTicketInput,
     ) -> TicketType:
         session = get_session(info)
+        auth_user = get_auth_user(info)
+        event_service = EventService(session)
+        await event_service.ensure_organizer(input.event_id, auth_user.user_id)
+
         service = TicketService(session)
         ticket = await service.create(
             Ticket,
@@ -571,10 +874,11 @@ class Mutation:
         return TicketType(**ticket_to_type(ticket))
 
     @strawberry.mutation
+    @require_auth
     async def update_ticket(
         self,
         info: Info,
-        id: UUID,
+        id: uuid.UUID,
         input: UpdateTicketInput,
     ) -> Optional[TicketType]:
         session = get_session(info)
@@ -583,27 +887,39 @@ class Mutation:
         if not ticket:
             return None
 
+        auth_user = get_auth_user(info)
+        event_service = EventService(session)
+        await event_service.ensure_organizer(ticket.event_id, auth_user.user_id)
+
         update_data = {k: v for k, v in input.__dict__.items() if v is not None}
         ticket = await service.update(ticket, **update_data)
         await session.commit()
         return TicketType(**ticket_to_type(ticket))
 
     @strawberry.mutation
+    @require_auth
     async def delete_ticket(
         self,
         info: Info,
-        id: UUID,
+        id: uuid.UUID,
     ) -> bool:
         session = get_session(info)
         service = TicketService(session)
         ticket = await service.get_by_id(id)
         if not ticket:
             return False
+
+        auth_user = get_auth_user(info)
+        event_service = EventService(session)
+        await event_service.ensure_organizer(ticket.event_id, auth_user.user_id)
+
         await service.deactivate(ticket)
         await session.commit()
         return True
 
-    # ----- Order mutations -----
+    # ================================================================
+    # Order mutations
+    # ================================================================
 
     @strawberry.mutation
     async def create_order(
@@ -630,25 +946,32 @@ class Mutation:
             return None
 
     @strawberry.mutation
+    @require_auth
     async def confirm_order(
         self,
         info: Info,
-        id: UUID,
+        id: uuid.UUID,
     ) -> Optional[OrderType]:
         session = get_session(info)
+        event_service = EventService(session)
         service = OrderService(session)
         order = await service.get_by_id(id)
         if not order:
             return None
+
+        auth_user = get_auth_user(info)
+        await event_service.ensure_organizer(order.event_id, auth_user.user_id)
+
         order = await service.confirm_order(order)
         await session.commit()
         return OrderType(**order_to_type(order))
 
     @strawberry.mutation
+    @require_auth
     async def cancel_order(
         self,
         info: Info,
-        id: UUID,
+        id: uuid.UUID,
         release_tickets: bool = True,
     ) -> Optional[OrderType]:
         session = get_session(info)
@@ -656,23 +979,31 @@ class Mutation:
         order = await service.get_by_id(id)
         if not order:
             return None
+
+        auth_user = get_auth_user(info)
+        event_service = EventService(session)
+        await event_service.ensure_organizer(order.event_id, auth_user.user_id)
+
         order = await service.cancel_order(order, release_tickets=release_tickets)
         await session.commit()
         return OrderType(**order_to_type(order))
 
-    # ----- Attendee mutations -----
+    # ================================================================
+    # Attendee mutations
+    # ================================================================
 
     @strawberry.mutation
+    @require_auth
     async def check_in_attendee(
         self,
         info: Info,
-        attendee_id: UUID,
-        checked_in_by: UUID,
+        attendee_id: uuid.UUID,
     ) -> Optional[AttendeeType]:
         session = get_session(info)
+        auth_user = get_auth_user(info)
         service = AttendeeService(session)
         try:
-            attendee = await service.check_in(attendee_id, checked_in_by)
+            attendee = await service.check_in(attendee_id, auth_user.user_id)
             await session.commit()
             return AttendeeType(**attendee_to_type(attendee))
         except ValueError:
@@ -680,10 +1011,11 @@ class Mutation:
             return None
 
     @strawberry.mutation
+    @require_auth
     async def undo_attendee_check_in(
         self,
         info: Info,
-        attendee_id: UUID,
+        attendee_id: uuid.UUID,
     ) -> Optional[AttendeeType]:
         session = get_session(info)
         service = AttendeeService(session)
@@ -696,10 +1028,11 @@ class Mutation:
             return None
 
     @strawberry.mutation
+    @require_auth
     async def update_attendee_notes(
         self,
         info: Info,
-        attendee_id: UUID,
+        attendee_id: uuid.UUID,
         notes: str,
     ) -> Optional[AttendeeType]:
         session = get_session(info)
@@ -712,13 +1045,16 @@ class Mutation:
             await session.rollback()
             return None
 
-    # ----- Payment mutations -----
+    # ================================================================
+    # Payment mutations
+    # ================================================================
 
     @strawberry.mutation
+    @require_auth
     async def create_payment(
         self,
         info: Info,
-        order_id: UUID,
+        order_id: uuid.UUID,
         provider: str,
         provider_payment_id: str,
         amount: float,
@@ -743,6 +1079,8 @@ class Mutation:
             return None
 
     @strawberry.mutation
+    @require_auth
+    @require_role("admin")
     async def process_refund(
         self,
         info: Info,
@@ -764,13 +1102,15 @@ class Mutation:
             await session.rollback()
             return None
 
-    # ----- Payment provider mutations -----
+    # ================================================================
+    # Payment provider mutations
+    # ================================================================
 
     @strawberry.mutation
     async def create_payment_order(
         self,
         info: Info,
-        order_id: UUID,
+        order_id: uuid.UUID,
         provider: str = "razorpay",
     ) -> PaymentOrderPayload:
         session = get_session(info)
@@ -816,7 +1156,7 @@ class Mutation:
     async def verify_payment(
         self,
         info: Info,
-        order_id: UUID,
+        order_id: uuid.UUID,
         provider_payment_id: str,
         provider_order_id: str,
         signature: str,
@@ -864,3 +1204,108 @@ class Mutation:
             payment_status=payment.status,
             message="Payment verified",
         )
+
+    # ================================================================
+    # Notification mutations
+    # ================================================================
+
+    @strawberry.mutation
+    @require_auth
+    async def mark_notification_read(
+        self,
+        info: Info,
+        notification_id: uuid.UUID,
+    ) -> Optional[NotificationType]:
+        session = get_session(info)
+        auth_user = get_auth_user(info)
+        service = NotificationService(session)
+        notif = await service.mark_read(notification_id)
+        if not notif or notif.user_id != auth_user.user_id:
+            return None
+        await session.commit()
+        return NotificationType(**notification_to_type(notif))
+
+    @strawberry.mutation
+    @require_auth
+    async def mark_all_notifications_read(
+        self,
+        info: Info,
+    ) -> int:
+        session = get_session(info)
+        auth_user = get_auth_user(info)
+        service = NotificationService(session)
+        count = await service.mark_all_read(auth_user.user_id)
+        return count
+
+    # ================================================================
+    # Event Page Builder mutations
+    # ================================================================
+
+    @strawberry.mutation
+    @require_auth
+    async def save_event_page(
+        self,
+        info: Info,
+        event_id: uuid.UUID,
+        input: UpdateEventPageInput,
+    ) -> EventPageType:
+        session = get_session(info)
+        auth_user = get_auth_user(info)
+        event_service = EventService(session)
+        await event_service.ensure_organizer(event_id, auth_user.user_id)
+
+        page_service = EventPageService(session)
+
+        blocks = []
+        for b in input.blocks:
+            block_data = {
+                "id": b.id,
+                "type": b.type,
+                "visible": b.visible,
+            }
+            if b.props is not None:
+                block_data["props"] = b.props
+            else:
+                block_data["props"] = {}
+            blocks.append(block_data)
+
+        page = await page_service.update_blocks(event_id, blocks)
+        if input.is_published:
+            page = await page_service.publish(event_id)
+
+        await session.commit()
+        return EventPageType(**event_page_to_type(page))
+
+    @strawberry.mutation
+    @require_auth
+    async def publish_event_page(
+        self,
+        info: Info,
+        event_id: uuid.UUID,
+    ) -> EventPageType:
+        session = get_session(info)
+        auth_user = get_auth_user(info)
+        event_service = EventService(session)
+        await event_service.ensure_organizer(event_id, auth_user.user_id)
+
+        page_service = EventPageService(session)
+        page = await page_service.publish(event_id)
+        await session.commit()
+        return EventPageType(**event_page_to_type(page))
+
+    @strawberry.mutation
+    @require_auth
+    async def unpublish_event_page(
+        self,
+        info: Info,
+        event_id: uuid.UUID,
+    ) -> EventPageType:
+        session = get_session(info)
+        auth_user = get_auth_user(info)
+        event_service = EventService(session)
+        await event_service.ensure_organizer(event_id, auth_user.user_id)
+
+        page_service = EventPageService(session)
+        page = await page_service.unpublish(event_id)
+        await session.commit()
+        return EventPageType(**event_page_to_type(page))
