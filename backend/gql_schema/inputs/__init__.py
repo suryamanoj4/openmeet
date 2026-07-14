@@ -12,6 +12,8 @@ from gql_schema.inputs.event_input import (
     CreateEventInput,
     UpdateEventInput,
     EventMutationResult,
+    EventPageBlockInput,
+    UpdateEventPageInput,
 )
 from gql_schema.inputs.ticket_input import (
     CreateTicketInput,
@@ -22,6 +24,13 @@ from gql_schema.inputs.order_input import (
     CreateOrderInput,
     UpdateOrderInput,
     OrderItemInput,
+)
+from gql_schema.inputs.auth_input import (
+    LoginInput,
+    RegisterInput,
+    PasswordResetRequestInput,
+    PasswordResetConfirmInput,
+    EmailVerificationInput,
 )
 
 __all__ = [
@@ -34,10 +43,17 @@ __all__ = [
     "CreateEventInput",
     "UpdateEventInput",
     "EventMutationResult",
+    "EventPageBlockInput",
+    "UpdateEventPageInput",
     "CreateTicketInput",
     "UpdateTicketInput",
     "TicketMutationResult",
     "CreateOrderInput",
     "UpdateOrderInput",
     "OrderItemInput",
+    "LoginInput",
+    "RegisterInput",
+    "PasswordResetRequestInput",
+    "PasswordResetConfirmInput",
+    "EmailVerificationInput",
 ]

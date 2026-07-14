@@ -65,3 +65,17 @@ class UpdateEventInput:
 class EventMutationResult:
     event: Optional["EventType"]
     error: Optional[str]
+
+
+@strawberry.input
+class EventPageBlockInput:
+    id: str
+    type: str
+    props: Optional[JSON] = None
+    visible: bool = True
+
+
+@strawberry.input
+class UpdateEventPageInput:
+    blocks: list[EventPageBlockInput]
+    is_published: Optional[bool] = None

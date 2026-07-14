@@ -222,6 +222,76 @@ def event_staff_to_type(staff) -> dict:
     }
 
 
+def audit_log_to_type(log) -> dict:
+    return {
+        "id": log.id,
+        "user_id": log.user_id,
+        "action": log.action,
+        "resource_type": log.resource_type,
+        "resource_id": log.resource_id,
+        "organization_id": log.organization_id,
+        "ip_address": log.ip_address,
+        "user_agent": log.user_agent,
+        "changes": log.changes,
+        "created_at": log.created_at,
+    }
+
+
+def email_log_to_type(log) -> dict:
+    return {
+        "id": log.id,
+        "recipient_email": log.recipient_email,
+        "template_name": log.template_name,
+        "status": log.status,
+        "error_message": log.error_message,
+        "extra_data": log.extra_data,
+        "created_at": log.created_at,
+    }
+
+
+def invitation_to_type(inv) -> dict:
+    return {
+        "id": inv.id,
+        "organization_id": inv.organization_id,
+        "email": inv.email,
+        "role": inv.role,
+        "status": inv.status,
+        "token": inv.token,
+        "invited_by": inv.invited_by,
+        "accepted_by": inv.accepted_by,
+        "expires_at": inv.expires_at,
+        "accepted_at": inv.accepted_at,
+        "created_at": inv.created_at,
+        "updated_at": inv.updated_at,
+    }
+
+
+def notification_to_type(notif) -> dict:
+    return {
+        "id": notif.id,
+        "user_id": notif.user_id,
+        "notification_type": notif.notification_type,
+        "title": notif.title,
+        "message": notif.message,
+        "data": notif.data,
+        "is_read": notif.is_read,
+        "read_at": notif.read_at,
+        "created_at": notif.created_at,
+    }
+
+
+def event_page_to_type(page) -> dict:
+    return {
+        "id": page.id,
+        "event_id": page.event_id,
+        "blocks": page.blocks,
+        "is_published": page.is_published,
+        "published_at": page.published_at,
+        "created_at": page.created_at,
+        "updated_at": page.updated_at,
+    }
+
+
 def register_mappers():
     from models import (
         User,
@@ -235,6 +305,11 @@ def register_mappers():
         Member,
         Follower,
         EventStaff,
+        AuditLog,
+        EmailLog,
+        Invitation,
+        Notification,
+        EventPage,
     )
 
     type_mapper.register(User, user_to_type)
@@ -248,3 +323,8 @@ def register_mappers():
     type_mapper.register(Member, member_to_type)
     type_mapper.register(Follower, follower_to_type)
     type_mapper.register(EventStaff, event_staff_to_type)
+    type_mapper.register(AuditLog, audit_log_to_type)
+    type_mapper.register(EmailLog, email_log_to_type)
+    type_mapper.register(Invitation, invitation_to_type)
+    type_mapper.register(Notification, notification_to_type)
+    type_mapper.register(EventPage, event_page_to_type)

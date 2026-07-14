@@ -9,6 +9,11 @@ from gql_schema.types.follower import FollowerType
 from gql_schema.types.event_staff import EventStaffType
 from gql_schema.types.payment import PaymentType
 from gql_schema.types.order_item import OrderItemType
+from gql_schema.types.audit_log import AuditLogType
+from gql_schema.types.email_log import EmailLogType
+from gql_schema.types.invitation import InvitationType
+from gql_schema.types.notification import NotificationType
+from gql_schema.types.event_page import EventPageType
 
 __all__ = [
     "UserType",
@@ -22,4 +27,9 @@ __all__ = [
     "EventStaffType",
     "PaymentType",
     "OrderItemType",
+    "AuditLogType",
+    "EmailLogType",
+    "InvitationType",
+    "NotificationType",
+    "EventPageType",
 ]
