@@ -175,3 +175,47 @@ async def get_auth_context(
 
     payload = decode_token(token)
     return AuthContext(user=user, token_payload=payload or {})
+
+
+def create_password_reset_token(user_id: uuid.UUID, email: str) -> str:
+    """Create a short-lived JWT for password reset (1 hour)."""
+    expire = datetime.utcnow() + timedelta(hours=1)
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "type": "password_reset",
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "jti": str(uuid.uuid4()),
+    }
+    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+
+def verify_password_reset_token(token: str) -> Optional[dict]:
+    """Decode and validate a password reset token."""
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "password_reset":
+        return None
+    return payload
+
+
+def create_email_verification_token(user_id: uuid.UUID, email: str) -> str:
+    """Create a JWT for email verification (24 hours)."""
+    expire = datetime.utcnow() + timedelta(hours=24)
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "type": "email_verification",
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "jti": str(uuid.uuid4()),
+    }
+    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+
+def verify_email_verification_token(token: str) -> Optional[dict]:
+    """Decode and validate an email verification token."""
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "email_verification":
+        return None
+    return payload
