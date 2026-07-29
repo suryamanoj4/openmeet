@@ -28,6 +28,7 @@ from config import settings
 from email_service import send_password_reset_email, send_email_verification_email, send_invitation_email
 from rbac import require_auth, require_role, PermissionDenied
 from payment_provider import get_provider
+from gql_schema.datetime_utils import to_naive_utc
 from gql_schema.types import (
     UserType,
     OrganizationType,
@@ -662,8 +663,8 @@ class Mutation:
             event_type=input.event_type,
             status=input.status,
             visibility=input.visibility,
-            start_date=input.start_date,
-            end_date=input.end_date,
+            start_date=to_naive_utc(input.start_date),
+            end_date=to_naive_utc(input.end_date),
             timezone=input.timezone,
             venue_name=input.venue_name,
             venue_address=input.venue_address,
@@ -674,8 +675,8 @@ class Mutation:
             max_attendees=input.max_attendees,
             min_tickets_per_order=input.min_tickets_per_order,
             max_tickets_per_order=input.max_tickets_per_order,
-            registration_start=input.registration_start,
-            registration_end=input.registration_end,
+            registration_start=to_naive_utc(input.registration_start),
+            registration_end=to_naive_utc(input.registration_end),
             cover_image_url=input.cover_image_url,
             banner_image_url=input.banner_image_url,
             settings=input.settings,
@@ -712,6 +713,14 @@ class Mutation:
         await service.ensure_organizer(id, auth_user.user_id)
 
         update_data = {k: v for k, v in input.__dict__.items() if v is not None}
+        for field in (
+            "start_date",
+            "end_date",
+            "registration_start",
+            "registration_end",
+        ):
+            if field in update_data:
+                update_data[field] = to_naive_utc(update_data[field])
         event = await service.update(event, **update_data)
         await session.commit()
         return EventType(**event_to_type(event))

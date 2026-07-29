@@ -22,13 +22,19 @@ class UserType:
 
     @strawberry.field
     async def organizations(
-        self, info: strawberry.Info
+        self, info: strawberry.Info, role: Optional[str] = None
     ) -> list[Annotated["OrganizationType", lazy("gql_schema.types.organization")]]:
         from gql_schema.services.user_service import UserService
+        from gql_schema.services.mapping import organization_to_type
+        from gql_schema.types.organization import OrganizationType
 
         session = info.context["db"]
         service = UserService(session)
-        return await service.get_user_organizations(self.id)
+        organizations = await service.get_user_organizations(self.id, role=role)
+        return [
+            OrganizationType(**organization_to_type(organization))
+            for organization in organizations
+        ]
 
     @strawberry.field
     async def followers(

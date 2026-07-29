@@ -9,7 +9,7 @@ from strawberry.scalars import JSON
 @strawberry.type
 class EventType:
     id: uuid.UUID
-    organization_id: uuid.UUID
+    organization_id: Optional[uuid.UUID]
     name: str
     slug: str
     description: Optional[str]

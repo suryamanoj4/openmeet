@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { getEvent, updateEvent } from '$lib/services/events';
-	import { listOrganizations } from '$lib/services/organizations';
+	import { toUpdateEventInput } from '$lib/services/event-input';
 	import Button from '$lib/components/ui/button.svelte';
 	import Input from '$lib/components/ui/input.svelte';
 	import Label from '$lib/components/ui/label.svelte';
@@ -12,24 +12,20 @@
 	import CardTitle from '$lib/components/ui/card-title.svelte';
 	import CardContent from '$lib/components/ui/card-content.svelte';
 	import { ArrowLeft } from 'lucide-svelte';
-	import type { Organization } from '$lib/graphql/types';
 
 	let name = $state(''); let slug = $state(''); let description = $state('');
 	let event_type = $state('conference'); let venue_city = $state(''); let is_online = $state(false);
-	let cover_image_url = $state(''); let organization_id = $state<string | undefined>(undefined);
-	let orgs = $state<Organization[]>([]);
+	let cover_image_url = $state('');
 	let error = $state<string | null>(null); let saving = $state(false); let loading = $state(true);
 	let eid = $state('');
 
 	onMount(async () => {
 		eid = $page.params.id as string;
-		const [event, orgList] = await Promise.all([getEvent(eid), listOrganizations()]);
-		orgs = orgList;
+		const event = await getEvent(eid);
 		if (event) {
 			name = event.name; slug = event.slug; description = event.description || '';
 			event_type = event.event_type; venue_city = event.venue_city || '';
 			is_online = event.is_online; cover_image_url = event.cover_image_url || '';
-			organization_id = event.organization_id || undefined;
 		}
 		loading = false;
 	});
@@ -37,10 +33,9 @@
 	async function handleSubmit(e: Event) {
 		e.preventDefault(); error = null; saving = true;
 		try {
-			await updateEvent(eid, {
-				name, slug, description: description || null, event_type,
-				venue_city: venue_city || null, is_online, cover_image_url: cover_image_url || null,
-			});
+			await updateEvent(eid, toUpdateEventInput({
+				name, slug, description, event_type, venue_city, is_online, cover_image_url
+			}));
 			goto(`/events/${eid}`);
 		} catch (err) { error = err instanceof Error ? err.message : 'Failed'; } finally { saving = false; }
 	}
@@ -56,12 +51,13 @@
 				<form onsubmit={handleSubmit} class="space-y-5">
 					{#if error}<div class="rounded-lg border border-error-container/50 bg-error-container/10 p-3"><p class="text-body-md text-error">{error}</p></div>{/if}
 					<div class="space-y-1.5"><Label for="name">Name</Label><Input id="name" bind:value={name} required /></div>
-					<div class="space-y-1.5"><Label for="slug">Slug</Label><Input id="slug" bind:value={slug} required /></div>
-					<div class="space-y-1.5"><Label for="desc">Description</Label><textarea id="desc" bind:value={description} class="flex min-h-[80px] w-full rounded-lg border border-input bg-surface-container-lowest px-3 py-2 text-body-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"></textarea></div>
-					<div class="grid grid-cols-2 gap-4">
-						<div class="space-y-1.5"><Label for="type">Type</Label><select id="type" bind:value={event_type} class="flex h-10 w-full rounded-lg border border-input bg-surface-container-lowest px-3 text-body-md"><option value="conference">Conference</option><option value="workshop">Workshop</option><option value="meetup">Meetup</option><option value="webinar">Webinar</option><option value="hackathon">Hackathon</option></select></div>
-						<div class="space-y-1.5"><Label for="org">Organization</Label><select id="org" bind:value={organization_id} class="flex h-10 w-full rounded-lg border border-input bg-surface-container-lowest px-3 text-body-md"><option value={undefined}>Personal event</option>{#each orgs as org}<option value={org.id}>{org.name}</option>{/each}</select></div>
+					<div class="space-y-1.5">
+						<Label for="slug">Slug</Label>
+						<Input id="slug" bind:value={slug} disabled />
+						<p class="text-label-sm text-on-surface-variant">The event slug cannot be changed.</p>
 					</div>
+					<div class="space-y-1.5"><Label for="desc">Description</Label><textarea id="desc" bind:value={description} class="flex min-h-[80px] w-full rounded-lg border border-input bg-surface-container-lowest px-3 py-2 text-body-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"></textarea></div>
+					<div class="space-y-1.5"><Label for="type">Type</Label><select id="type" bind:value={event_type} class="flex h-10 w-full rounded-lg border border-input bg-surface-container-lowest px-3 text-body-md"><option value="conference">Conference</option><option value="workshop">Workshop</option><option value="meetup">Meetup</option><option value="webinar">Webinar</option><option value="hackathon">Hackathon</option></select></div>
 					<div class="grid grid-cols-2 gap-4">
 						<div class="space-y-1.5"><Label for="city">City</Label><Input id="city" bind:value={venue_city} /></div>
 						<div class="space-y-1.5 flex items-end pb-2"><label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" bind:checked={is_online} class="w-4 h-4 rounded border-outline-variant text-primary" /><span class="text-body-md text-fg">Online event</span></label></div>

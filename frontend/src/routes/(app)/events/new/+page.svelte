@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { createEvent } from '$lib/services/events';
-	import { listOrganizations } from '$lib/services/organizations';
+	import { toCreateEventInput } from '$lib/services/event-input';
+	import { listAdminOrganizations } from '$lib/services/organizations';
 	import Button from '$lib/components/ui/button.svelte';
 	import Input from '$lib/components/ui/input.svelte';
 	import Label from '$lib/components/ui/label.svelte';
@@ -20,16 +21,21 @@
 	let orgs = $state<Organization[]>([]);
 	let error = $state<string | null>(null); let saving = $state(false);
 
-	onMount(async () => { orgs = await listOrganizations(); });
+	onMount(async () => {
+		try {
+			orgs = await listAdminOrganizations();
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to load organizations';
+		}
+	});
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault(); error = null; saving = true;
 		try {
-			const event = await createEvent({
-				organization_id: organization_id || null, name, slug, description: description || null,
-				event_type, start_date: new Date(start_date).toISOString(), end_date: new Date(end_date).toISOString(),
-				venue_city: venue_city || null, is_online, cover_image_url: cover_image_url || null,
-			});
+			const event = await createEvent(toCreateEventInput({
+				organization_id, name, slug, description, event_type, start_date, end_date,
+				venue_city, is_online, cover_image_url
+			}));
 			if (event) goto(`/events/${event.id}`);
 			else error = 'Failed to create event';
 		} catch (err) { error = err instanceof Error ? err.message : 'Failed'; }

@@ -8,7 +8,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from gql_schema.services.base import BaseService
-from models import User, Member, Follower
+from models import User, Member, Follower, Organization
 
 
 class UserService(BaseService[User]):
@@ -25,12 +25,20 @@ class UserService(BaseService[User]):
         result = await self.session.exec(select(User).where(User.id == id))
         return result.first()
 
-    async def get_user_organizations(self, user_id: UUID) -> List[Member]:
-        result = await self.session.exec(
-            select(Member)
+    async def get_user_organizations(
+        self, user_id: UUID, role: Optional[str] = None
+    ) -> List[Organization]:
+        query = (
+            select(Organization)
+            .join(Member, Member.organization_id == Organization.id)
             .where(Member.user_id == user_id)
             .where(Member.is_active == True)
+            .where(Organization.is_active == True)
         )
+        if role:
+            query = query.where(Member.role == role)
+
+        result = await self.session.exec(query)
         return list(result.all())
 
     async def get_user_followers(self, user_id: UUID) -> List[Follower]:
