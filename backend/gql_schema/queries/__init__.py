@@ -155,6 +155,7 @@ class Query:
         skip: int = 0,
         limit: int = 100,
     ) -> List[OrganizationType]:
+        require_platform_admin(info)
         session = get_session(info)
         service = OrganizationService(session)
         orgs = await service.get_all(skip=skip, limit=limit)
@@ -166,11 +167,13 @@ class Query:
         info: Info,
         id: UUID,
     ) -> Optional[OrganizationType]:
+        require_authenticated(info)
         session = get_session(info)
         service = OrganizationService(session)
         org = await service.get_by_id(id)
         if not org:
             return None
+        await require_organization_admin(info, org.id)
         return OrganizationType(**organization_to_type(org))
 
     @strawberry.field
@@ -179,11 +182,13 @@ class Query:
         info: Info,
         slug: str,
     ) -> Optional[OrganizationType]:
+        require_authenticated(info)
         session = get_session(info)
         service = OrganizationService(session)
         org = await service.get_by_slug(slug)
         if not org:
             return None
+        await require_organization_admin(info, org.id)
         return OrganizationType(**organization_to_type(org))
 
     @strawberry.field
@@ -314,6 +319,7 @@ class Query:
         organization_id: UUID,
         slug: str,
     ) -> Optional[EventType]:
+        require_authenticated(info)
         session = get_session(info)
         service = EventService(session)
         event = await service.get_by_slug(slug)
@@ -325,6 +331,7 @@ class Query:
             or not event.is_active
         ):
             return None
+        await require_event_organizer(info, event.id)
         return EventType(**event_to_type(event))
 
     @strawberry.field
@@ -427,22 +434,31 @@ class Query:
     async def attendees(
         self,
         info: Info,
+        event_id: Optional[UUID] = None,
         ticket_id: Optional[UUID] = None,
-        check_in_status: Optional[str] = None,
+        check_in_status: Optional[bool] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> List[AttendeeType]:
         session = get_session(info)
+        if event_id:
+            await require_event_organizer(info, event_id)
         if ticket_id:
             ticket = await TicketService(session).get_by_id(ticket_id)
             if not ticket:
                 return []
+            if event_id and ticket.event_id != event_id:
+                raise ValueError("Ticket does not belong to this event")
             await require_event_organizer(info, ticket.event_id)
-        else:
+        elif not event_id:
             require_platform_admin(info)
         service = AttendeeService(session)
         attendees = await service.get_all(
-            skip=skip, limit=limit, ticket_id=ticket_id
+            skip=skip,
+            limit=limit,
+            event_id=event_id,
+            ticket_id=ticket_id,
+            check_in_status=check_in_status,
         )
         return [AttendeeType(**attendee_to_type(a)) for a in attendees]
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { listOrganizations } from '$lib/services/organizations';
+	import { listAdminOrganizations } from '$lib/services/organizations';
 	import Button from '$lib/components/ui/button.svelte';
 	import Card from '$lib/components/ui/card.svelte';
 	import { Building2, Plus, ArrowRight } from 'lucide-svelte';
@@ -11,7 +11,7 @@
 	let loading = $state(true);
 
 	onMount(async () => {
-		orgs = await listOrganizations();
+		orgs = await listAdminOrganizations();
 		loading = false;
 	});
 </script>

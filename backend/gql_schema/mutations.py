@@ -101,7 +101,19 @@ from gql_schema.validation import (
     PublishableEventScheduleSchema,
     validate_publishable_blocks,
 )
-from models import User, Organization, Event, Ticket, EventStaff, AuditLog, EmailLog, Invitation, Notification, EventPage
+from models import (
+    User,
+    Organization,
+    Event,
+    Ticket,
+    Order,
+    EventStaff,
+    AuditLog,
+    EmailLog,
+    Invitation,
+    Notification,
+    EventPage,
+)
 
 
 def get_session(info: Info) -> AsyncSession:
@@ -113,6 +125,17 @@ def get_auth_user(info: Info):
     if isinstance(ctx, dict) and ctx.get("current_user"):
         return ctx["current_user"]
     return None
+
+
+def require_order_owner_or_admin(info: Info, order: Order):
+    """Require the purchaser or a platform administrator for an order."""
+    auth_user = get_auth_user(info)
+    if not auth_user:
+        raise PermissionDenied("Authentication required")
+    is_platform_admin = auth_user.is_superuser or auth_user.role == "admin"
+    if order.created_by != auth_user.user_id and not is_platform_admin:
+        raise PermissionDenied("You do not own this order")
+    return auth_user
 
 
 def _schedule_values(event: Event, overrides: Optional[dict] = None) -> dict:
@@ -377,6 +400,7 @@ class Mutation:
 
     @strawberry.mutation
     @require_auth
+    @require_role("admin")
     async def create_user(
         self,
         info: Info,
@@ -1264,6 +1288,7 @@ class Mutation:
         order = await service.get_by_id(order_id)
         if not order:
             raise ValueError("Order not found")
+        require_order_owner_or_admin(info, order)
 
         if order.payment_status != "unpaid":
             raise ValueError("Order already has a payment")
@@ -1311,6 +1336,10 @@ class Mutation:
         session = get_session(info)
         service = PaymentService(session)
         payment_provider = get_provider(provider)
+        order = await OrderService(session).get_by_id(order_id)
+        if not order:
+            raise ValueError("Order not found")
+        require_order_owner_or_admin(info, order)
 
         is_valid = payment_provider.verify_signature(
             provider_order_id=provider_order_id,
@@ -1334,6 +1363,10 @@ class Mutation:
                 payment_status="unpaid",
                 message="Payment record not found",
             )
+        if payment.order_id != order.id:
+            raise PermissionDenied("Payment does not belong to this order")
+        if payment.provider != provider:
+            raise ValueError("Payment provider does not match this order")
 
         payment = await service.mark_payment_success(
             provider_payment_id=provider_order_id,
