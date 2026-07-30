@@ -20,7 +20,7 @@ logger = logging.getLogger("openmeets")
 
 async def get_context(
     request: Request,
-) -> dict:
+):
     session = AsyncSessionLocal()
     authorization = request.headers.get("Authorization")
 
@@ -31,7 +31,10 @@ async def get_context(
         if auth_ctx:
             context["current_user"] = auth_ctx
 
-    return context
+    try:
+        yield context
+    finally:
+        await session.close()
 
 
 async def get_root_value():
@@ -151,4 +154,3 @@ async def payment_webhook(request: Request):
         extra={"webhook_payload": payload},
     )
     return {"status": "ok"}
-

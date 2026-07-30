@@ -1,6 +1,6 @@
 export const ATTENDEES = `
 	query Attendees($event_id: UUID, $limit: Int, $skip: Int) {
-		attendees(ticketId: $event_id, limit: $limit, skip: $skip) {
+		attendees(eventId: $event_id, limit: $limit, skip: $skip) {
 			id
 			first_name: firstName
 			last_name: lastName
@@ -28,8 +28,8 @@ export const SEARCH_ATTENDEES = `
 `;
 
 export const CHECK_IN_ATTENDEE = `
-	mutation CheckInAttendee($attendee_id: UUID!, $checked_in_by: UUID!) {
-		check_in_attendee: checkInAttendee(attendeeId: $attendee_id, checkedInBy: $checked_in_by) {
+	mutation CheckInAttendee($attendee_id: UUID!) {
+		check_in_attendee: checkInAttendee(attendeeId: $attendee_id) {
 			id
 			check_in_status: checkInStatus
 			check_in_at: checkInAt

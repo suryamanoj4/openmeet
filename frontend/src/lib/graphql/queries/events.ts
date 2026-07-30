@@ -55,33 +55,6 @@ export const EVENT = `
 	}
 `;
 
-export const EVENT_BY_SLUG = `
-	query EventBySlug($organization_id: UUID!, $slug: String!) {
-		event_by_slug(organizationId: $organization_id, slug: $slug) {
-			id
-			name
-			slug
-			description
-			event_type: eventType
-			status
-			visibility
-			start_date: startDate
-			end_date: endDate
-			timezone
-			venue_name: venueName
-			venue_address: venueAddress
-			venue_city: venueCity
-			venue_country: venueCountry
-			is_online: isOnline
-			online_url: onlineUrl
-			max_attendees: maxAttendees
-			cover_image_url: coverImageUrl
-			banner_image_url: bannerImageUrl
-			organization_id: organizationId
-		}
-	}
-`;
-
 export const EVENT_TICKETS = `
 	query EventTickets($event_id: UUID!) {
 		event_tickets(eventId: $event_id) {

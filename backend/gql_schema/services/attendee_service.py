@@ -140,10 +140,18 @@ class AttendeeService(BaseService[Attendee]):
         self,
         skip: int = 0,
         limit: int = 100,
+        event_id: Optional[UUID] = None,
         ticket_id: Optional[UUID] = None,
+        check_in_status: Optional[bool] = None,
     ) -> List[Attendee]:
         query = select(Attendee).where(Attendee.is_active == True)
+        if event_id:
+            query = query.join(Ticket, Ticket.id == Attendee.ticket_id).where(
+                Ticket.event_id == event_id
+            )
         if ticket_id:
             query = query.where(Attendee.ticket_id == ticket_id)
+        if check_in_status is not None:
+            query = query.where(Attendee.check_in_status == check_in_status)
         result = await self.session.exec(query.offset(skip).limit(limit))
         return list(result.all())

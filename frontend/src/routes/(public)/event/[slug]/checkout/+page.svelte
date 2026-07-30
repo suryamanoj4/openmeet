@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { EVENTS, EVENT_BY_SLUG, AVAILABLE_TICKETS } from '$lib/graphql/queries/events';
+	import { PUBLIC_EVENT, RESOLVE_PUBLIC_EVENT_SLUG } from '$lib/graphql/queries/events';
 	import { graphqlClient } from '$lib/graphql/client';
 	import { createOrder, confirmOrder } from '$lib/services/orders';
 	import Button from '$lib/components/ui/button.svelte';
@@ -26,16 +26,22 @@
 
 	onMount(async () => {
 		try {
-			const eventsRes = await graphqlClient.query<{ events: { id: string; slug: string; organization_id: string }[] }>(EVENTS, { limit: 50 }).toPromise();
-			const match = (eventsRes.data?.events ?? []).find((e: { slug: string }) => e.slug === $page.params.slug);
-			if (!match) { error = 'Event not found'; loading = false; return; }
+			const resolved = await graphqlClient.query<{ event: { id: string; slug: string } | null }>(
+				RESOLVE_PUBLIC_EVENT_SLUG,
+				{ slug: $page.params.slug }
+			).toPromise();
+			if (!resolved.data?.event) { error = 'Published event not found or the link is ambiguous.'; loading = false; return; }
 
-			const eventRes = await graphqlClient.query(EVENT_BY_SLUG, { organization_id: match.organization_id, slug: $page.params.slug }).toPromise();
-			eventData = eventRes.data?.event_by_slug ?? null;
+			const eventRes = await graphqlClient.query<{
+				public_event: {
+					event: Record<string, unknown>;
+					tickets: { id: string; name: string; price: number; currency: string; max_per_order: number }[];
+				} | null;
+			}>(PUBLIC_EVENT, resolved.data.event).toPromise();
+			eventData = eventRes.data?.public_event?.event ?? null;
+			tickets = eventRes.data?.public_event?.tickets ?? [];
 
 			if (eventData) {
-				const ticketRes = await graphqlClient.query<{ available_tickets: { id: string; name: string; price: number; currency: string; max_per_order: number }[] }>(AVAILABLE_TICKETS, { event_id: (eventData as Record<string, string>).id }).toPromise();
-				tickets = ticketRes.data?.available_tickets ?? [];
 				tickets.forEach(t => { quantities[t.id] = 0; });
 			}
 		} catch (err) { error = 'Failed to load event'; }
