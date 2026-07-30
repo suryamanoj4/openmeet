@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from rbac import check_event_role
+from rbac import PermissionDenied, check_event_role
 from gql_schema.services.base import BaseService
 from models import Event, Ticket, EventStaff, Order, User
 
@@ -131,7 +131,7 @@ class EventService(BaseService[Event]):
 
     async def ensure_organizer(self, event_id: UUID, user_id: UUID) -> None:
         if not await self.user_is_organizer(event_id, user_id):
-            raise PermissionError("You are not an organizer of this event")
+            raise PermissionDenied("You are not an organizer of this event")
 
     async def add_organizer(
         self, event_id: UUID, user_id: UUID, assigned_by: UUID, is_owner: bool = False
