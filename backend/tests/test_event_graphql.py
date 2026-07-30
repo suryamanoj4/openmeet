@@ -64,6 +64,9 @@ def test_event_datetimes_are_normalized_for_naive_utc_database_columns():
     )
 
     assert to_naive_utc(india_time) == datetime(2026, 8, 1, 10, 0)
+    naive_utc = datetime(2026, 8, 1, 10, 0)
+    assert to_naive_utc(naive_utc) is naive_utc
+    assert to_naive_utc(None) is None
 
 
 def test_new_event_schedule_requires_a_future_start_and_later_end():
@@ -74,6 +77,27 @@ def test_new_event_schedule_requires_a_future_start_and_later_end():
             start_date=now - timedelta(minutes=1),
             end_date=now + timedelta(hours=1),
             timezone_name="UTC",
+        )
+
+
+def test_registration_window_must_be_future_ordered_and_open_before_event():
+    now = datetime.now(timezone.utc)
+    start = now + timedelta(days=2)
+
+    with pytest.raises(ValidationError, match="registration start must be in the future"):
+        NewEventScheduleSchema(
+            start_date=start,
+            end_date=start + timedelta(hours=2),
+            timezone_name="UTC",
+            registration_start=now - timedelta(minutes=1),
+        )
+
+    with pytest.raises(ValidationError, match="must not be after the event starts"):
+        NewEventScheduleSchema(
+            start_date=start,
+            end_date=start + timedelta(hours=2),
+            timezone_name="UTC",
+            registration_start=start + timedelta(minutes=1),
         )
 
     with pytest.raises(ValidationError, match="end date must be after start date"):
@@ -115,6 +139,18 @@ def test_publishing_rejects_arbitrary_html_and_embed_code():
                     "type": "video",
                     "visible": True,
                     "props": {"embedCode": "<script>alert(1)</script>"},
+                }
+            ]
+        )
+
+    with pytest.raises(ValueError, match="map embed HTML"):
+        validate_publishable_blocks(
+            [
+                {
+                    "id": "unsafe-map",
+                    "type": "venue",
+                    "visible": True,
+                    "props": {"mapEmbed": "<iframe src='untrusted'></iframe>"},
                 }
             ]
         )

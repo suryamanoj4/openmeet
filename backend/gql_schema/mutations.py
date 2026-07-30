@@ -132,13 +132,25 @@ def _schedule_values(event: Event, overrides: Optional[dict] = None) -> dict:
 def _raise_validation_error(exc: ValidationError | ValueError) -> None:
     field = None
     message = str(exc)
+    errors = []
     if isinstance(exc, ValidationError) and exc.errors():
-        error = exc.errors()[0]
-        field = ".".join(str(part) for part in error.get("loc", ())) or None
-        message = error.get("msg", message).removeprefix("Value error, ")
+        for error in exc.errors():
+            error_field = (
+                ".".join(str(part) for part in error.get("loc", ())) or None
+            )
+            error_message = error.get("msg", str(error)).removeprefix(
+                "Value error, "
+            )
+            errors.append({"field": error_field, "message": error_message})
+        field = errors[0]["field"]
+        message = "; ".join(error["message"] for error in errors)
     raise GraphQLError(
         message,
-        extensions={"code": "VALIDATION_ERROR", "field": field},
+        extensions={
+            "code": "VALIDATION_ERROR",
+            "field": field,
+            "errors": errors or [{"field": field, "message": message}],
+        },
     ) from exc
 
 
@@ -765,7 +777,7 @@ class Mutation:
         auth_user = get_auth_user(info)
         service = EventService(session)
 
-        event = await service.get_by_id(id)
+        event = await service.get_by_id_for_update(id)
         if not event:
             return None
 
@@ -1376,7 +1388,7 @@ class Mutation:
         event_service = EventService(session)
         await event_service.ensure_organizer(event_id, auth_user.user_id)
 
-        event = await event_service.get_by_id(event_id)
+        event = await event_service.get_by_id_for_update(event_id)
         if not event:
             raise GraphQLError("Event not found")
 
@@ -1411,7 +1423,7 @@ class Mutation:
         event_service = EventService(session)
         await event_service.ensure_organizer(event_id, auth_user.user_id)
 
-        event = await event_service.get_by_id(event_id)
+        event = await event_service.get_by_id_for_update(event_id)
         if not event:
             raise GraphQLError("Event not found")
 

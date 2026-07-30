@@ -64,6 +64,13 @@ class EventService(BaseService[Event]):
         result = await self.session.exec(select(Event).where(Event.id == id))
         return result.first()
 
+    async def get_by_id_for_update(self, id: UUID) -> Optional[Event]:
+        """Lock an event while schedule or publication state is changed."""
+        result = await self.session.exec(
+            select(Event).where(Event.id == id).with_for_update()
+        )
+        return result.first()
+
     async def get_tickets(self, event_id: UUID) -> List[Ticket]:
         result = await self.session.exec(
             select(Ticket)
