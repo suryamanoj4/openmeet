@@ -5,11 +5,30 @@ export interface EventPageBlock {
 	props: Record<string, unknown>;
 }
 
+const EVENT_PAGE_BLOCK_TYPES = new Set<EventPageBlock['type']>([
+	'hero',
+	'text',
+	'image',
+	'about',
+	'schedule',
+	'speakers',
+	'venue',
+	'faqs',
+	'cta',
+	'video',
+	'divider'
+]);
+
 export function normalizeEventPageBlocks(value: unknown): EventPageBlock[] {
 	if (!Array.isArray(value)) return [];
 	return value
 		.filter((block): block is Record<string, unknown> => !!block && typeof block === 'object')
-		.filter((block) => typeof block.id === 'string' && typeof block.type === 'string')
+		.filter(
+			(block) =>
+				typeof block.id === 'string' &&
+				typeof block.type === 'string' &&
+				EVENT_PAGE_BLOCK_TYPES.has(block.type as EventPageBlock['type'])
+		)
 		.map((block) => ({
 			id: block.id as string,
 			type: block.type as EventPageBlock['type'],
@@ -36,7 +55,7 @@ export function videoEmbedUrl(value: unknown): string | null {
 	try {
 		const url = new URL(value);
 		if (url.hostname === 'youtu.be') return `https://www.youtube-nocookie.com/embed/${url.pathname.slice(1)}`;
-		if (url.hostname.endsWith('youtube.com')) {
+		if (url.hostname === 'youtube.com' || url.hostname.endsWith('.youtube.com')) {
 			const id = url.searchParams.get('v');
 			return id ? `https://www.youtube-nocookie.com/embed/${id}` : null;
 		}
