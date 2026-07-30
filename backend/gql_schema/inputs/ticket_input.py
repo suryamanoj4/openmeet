@@ -1,4 +1,6 @@
+from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
 import strawberry
 from strawberry import input
@@ -6,7 +8,7 @@ from strawberry import input
 
 @input
 class CreateTicketInput:
-    event_id: str
+    event_id: UUID
     name: str
     description: Optional[str] = None
     price: float
@@ -14,8 +16,8 @@ class CreateTicketInput:
     quantity: int
     min_per_order: int = 1
     max_per_order: int = 10
-    sale_start: Optional[str] = None
-    sale_end: Optional[str] = None
+    sale_start: Optional[datetime] = None
+    sale_end: Optional[datetime] = None
     is_active: bool = True
 
 
@@ -28,8 +30,8 @@ class UpdateTicketInput:
     quantity: Optional[int] = None
     min_per_order: Optional[int] = None
     max_per_order: Optional[int] = None
-    sale_start: Optional[str] = None
-    sale_end: Optional[str] = None
+    sale_start: Optional[datetime] = None
+    sale_end: Optional[datetime] = None
     is_active: Optional[bool] = None
 
 

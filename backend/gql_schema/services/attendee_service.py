@@ -45,6 +45,24 @@ class AttendeeService(BaseService[Attendee]):
         result = await self.session.exec(query.offset(skip).limit(limit))
         return list(result.all())
 
+    async def get_by_event(
+        self,
+        event_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[Attendee]:
+        result = await self.session.exec(
+            select(Attendee)
+            .join(Ticket, Attendee.ticket_id == Ticket.id)
+            .where(
+                Ticket.event_id == event_id,
+                Attendee.is_active == True,
+            )
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(result.all())
+
     async def search(
         self,
         event_id: UUID,

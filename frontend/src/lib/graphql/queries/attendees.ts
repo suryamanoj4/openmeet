@@ -1,6 +1,6 @@
 export const ATTENDEES = `
 	query Attendees($event_id: UUID, $limit: Int, $skip: Int) {
-		attendees(ticketId: $event_id, limit: $limit, skip: $skip) {
+		attendees(eventId: $event_id, limit: $limit, skip: $skip) {
 			id
 			first_name: firstName
 			last_name: lastName

@@ -385,14 +385,18 @@ class Query:
         limit: int = 100,
     ) -> List[OrderType]:
         session = get_session(info)
+        auth_user = require_authenticated(info)
         if event_id:
             await require_event_organizer(info, event_id)
-        else:
-            require_platform_admin(info)
         service = OrderService(session)
-        orders = await service.get_all(
-            skip=skip, limit=limit, event_id=event_id
-        )
+        if event_id or auth_user.is_superuser or auth_user.role == "admin":
+            orders = await service.get_all(
+                skip=skip, limit=limit, event_id=event_id
+            )
+        else:
+            orders = await service.get_by_creator(
+                auth_user.user_id, skip=skip, limit=limit
+            )
         return [OrderType(**order_to_type(o)) for o in orders]
 
     @strawberry.field
@@ -406,7 +410,9 @@ class Query:
         order = await service.get_by_id(id)
         if not order:
             return None
-        await require_event_organizer(info, order.event_id)
+        auth_user = require_authenticated(info)
+        if order.created_by != auth_user.user_id:
+            await require_event_organizer(info, order.event_id)
         return OrderType(**order_to_type(order))
 
     @strawberry.field
@@ -420,20 +426,25 @@ class Query:
         order = await service.get_by_order_number(order_number)
         if not order:
             return None
-        await require_event_organizer(info, order.event_id)
+        auth_user = require_authenticated(info)
+        if order.created_by != auth_user.user_id:
+            await require_event_organizer(info, order.event_id)
         return OrderType(**order_to_type(order))
 
     @strawberry.field
     async def attendees(
         self,
         info: Info,
+        event_id: Optional[UUID] = None,
         ticket_id: Optional[UUID] = None,
         check_in_status: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> List[AttendeeType]:
         session = get_session(info)
-        if ticket_id:
+        if event_id:
+            await require_event_organizer(info, event_id)
+        elif ticket_id:
             ticket = await TicketService(session).get_by_id(ticket_id)
             if not ticket:
                 return []
@@ -441,9 +452,14 @@ class Query:
         else:
             require_platform_admin(info)
         service = AttendeeService(session)
-        attendees = await service.get_all(
-            skip=skip, limit=limit, ticket_id=ticket_id
-        )
+        if event_id:
+            attendees = await service.get_by_event(
+                event_id, skip=skip, limit=limit
+            )
+        else:
+            attendees = await service.get_all(
+                skip=skip, limit=limit, ticket_id=ticket_id
+            )
         return [AttendeeType(**attendee_to_type(a)) for a in attendees]
 
     @strawberry.field

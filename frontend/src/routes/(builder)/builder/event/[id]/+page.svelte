@@ -318,8 +318,8 @@
 					{#if ticketError}<div class="rounded-lg border border-error-container/50 bg-error-container/10 p-3 mb-3"><p class="text-body-md text-error">{ticketError}</p></div>{/if}
 					<div class="grid grid-cols-3 gap-3 mb-3">
 						<div><Label for="tname">Name</Label><Input id="tname" bind:value={newTicketName} placeholder="General Admission" /></div>
-						<div><Label for="tprice">Price</Label><Input id="tprice" type="number" bind:value={newTicketPrice} /></div>
-						<div><Label for="tqty">Quantity</Label><Input id="tqty" type="number" bind:value={newTicketQty} /></div>
+						<div><Label for="tprice">Price</Label><Input id="tprice" type="number" min="0" step="0.01" bind:value={newTicketPrice} /></div>
+						<div><Label for="tqty">Quantity</Label><Input id="tqty" type="number" min="0" step="1" bind:value={newTicketQty} /></div>
 					</div>
 					<Button variant="primary" size="sm" onclick={addTicket} isLoading={savingTicket}><Plus size={14} class="mr-1" />Add Ticket</Button>
 				</div>

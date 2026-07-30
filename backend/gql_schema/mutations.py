@@ -99,6 +99,8 @@ from gql_schema.validation import (
     EventScheduleSchema,
     NewEventScheduleSchema,
     PublishableEventScheduleSchema,
+    CheckoutSchema,
+    TicketDefinitionSchema,
     validate_publishable_blocks,
 )
 from models import User, Organization, Event, Ticket, EventStaff, AuditLog, EmailLog, Invitation, Notification, EventPage
@@ -957,19 +959,32 @@ class Mutation:
         event_service = EventService(session)
         await event_service.ensure_organizer(input.event_id, auth_user.user_id)
 
+        try:
+            validated = TicketDefinitionSchema(
+                price=input.price,
+                currency=input.currency,
+                quantity=input.quantity,
+                min_per_order=input.min_per_order,
+                max_per_order=input.max_per_order,
+                sale_start=input.sale_start,
+                sale_end=input.sale_end,
+            )
+        except ValidationError as exc:
+            _raise_validation_error(exc)
+
         service = TicketService(session)
         ticket = await service.create(
             Ticket,
             event_id=input.event_id,
             name=input.name,
             description=input.description,
-            price=input.price,
-            currency=input.currency,
-            quantity=input.quantity,
-            min_per_order=input.min_per_order,
-            max_per_order=input.max_per_order,
-            sale_start=input.sale_start,
-            sale_end=input.sale_end,
+            price=validated.price,
+            currency=validated.currency,
+            quantity=validated.quantity,
+            min_per_order=validated.min_per_order,
+            max_per_order=validated.max_per_order,
+            sale_start=to_naive_utc(validated.sale_start),
+            sale_end=to_naive_utc(validated.sale_end),
             sort_order=input.sort_order,
         )
         await session.commit()
@@ -994,6 +1009,36 @@ class Mutation:
         await event_service.ensure_organizer(ticket.event_id, auth_user.user_id)
 
         update_data = {k: v for k, v in input.__dict__.items() if v is not None}
+        try:
+            validated = TicketDefinitionSchema(
+                price=update_data.get("price", ticket.price),
+                currency=update_data.get("currency", ticket.currency),
+                quantity=update_data.get("quantity", ticket.quantity),
+                min_per_order=update_data.get(
+                    "min_per_order", ticket.min_per_order
+                ),
+                max_per_order=update_data.get(
+                    "max_per_order", ticket.max_per_order
+                ),
+                sale_start=update_data.get("sale_start", ticket.sale_start),
+                sale_end=update_data.get("sale_end", ticket.sale_end),
+            )
+        except ValidationError as exc:
+            _raise_validation_error(exc)
+
+        for field in (
+            "price",
+            "currency",
+            "quantity",
+            "min_per_order",
+            "max_per_order",
+        ):
+            if field in update_data:
+                update_data[field] = getattr(validated, field)
+        for field in ("sale_start", "sale_end"):
+            if field in update_data:
+                update_data[field] = to_naive_utc(getattr(validated, field))
+
         ticket = await service.update(ticket, **update_data)
         await session.commit()
         return TicketType(**ticket_to_type(ticket))
@@ -1024,15 +1069,23 @@ class Mutation:
     # ================================================================
 
     @strawberry.mutation
+    @require_auth
     async def create_order(
         self,
         info: Info,
         input: CreateOrderInput,
     ) -> Optional[OrderType]:
         session = get_session(info)
+        auth_user = get_auth_user(info)
         service = OrderService(session)
         try:
-            items = [{"ticket_id": item.ticket_id, "quantity": item.quantity} for item in input.items]
+            validated = CheckoutSchema(
+                items=[
+                    {"ticket_id": item.ticket_id, "quantity": item.quantity}
+                    for item in input.items
+                ]
+            )
+            items = [item.model_dump() for item in validated.items]
             order = await service.create_order(
                 event_id=input.event_id,
                 customer_email=input.customer_email,
@@ -1040,12 +1093,16 @@ class Mutation:
                 customer_phone=input.customer_phone,
                 items=items,
                 notes=input.notes,
+                created_by=auth_user.user_id,
             )
             await session.commit()
             return OrderType(**order_to_type(order))
-        except ValueError:
+        except ValidationError as exc:
             await session.rollback()
-            return None
+            _raise_validation_error(exc)
+        except ValueError as exc:
+            await session.rollback()
+            _raise_validation_error(exc)
 
     @strawberry.mutation
     @require_auth
@@ -1248,10 +1305,13 @@ class Mutation:
     ) -> PaymentOrderPayload:
         session = get_session(info)
         service = OrderService(session)
+        auth_user = get_auth_user(info)
 
         order = await service.get_by_id(order_id)
         if not order:
             raise ValueError("Order not found")
+        if order.created_by != auth_user.user_id and not auth_user.is_superuser:
+            raise PermissionDenied("You do not own this order")
 
         if order.payment_status != "unpaid":
             raise ValueError("Order already has a payment")
@@ -1299,6 +1359,7 @@ class Mutation:
         session = get_session(info)
         service = PaymentService(session)
         payment_provider = get_provider(provider)
+        auth_user = get_auth_user(info)
 
         is_valid = payment_provider.verify_signature(
             provider_order_id=provider_order_id,
@@ -1322,6 +1383,16 @@ class Mutation:
                 payment_status="unpaid",
                 message="Payment record not found",
             )
+        order = await OrderService(session).get_by_id(order_id)
+        if (
+            not order
+            or payment.order_id != order.id
+            or (
+                order.created_by != auth_user.user_id
+                and not auth_user.is_superuser
+            )
+        ):
+            raise PermissionDenied("You do not own this order")
 
         payment = await service.mark_payment_success(
             provider_payment_id=provider_order_id,

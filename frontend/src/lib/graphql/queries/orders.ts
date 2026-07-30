@@ -44,6 +44,8 @@ export const CREATE_ORDER = `
 			order_number: orderNumber
 			status
 			total_amount: totalAmount
+			currency
+			payment_status: paymentStatus
 		}
 	}
 `;
@@ -54,6 +56,40 @@ export const CONFIRM_ORDER = `
 			id
 			status
 			payment_status: paymentStatus
+		}
+	}
+`;
+
+export const CREATE_PAYMENT_ORDER = `
+	mutation CreatePaymentOrder($order_id: UUID!) {
+		payment: createPaymentOrder(orderId: $order_id) {
+			provider_order_id: providerOrderId
+			provider_key_id: providerKeyId
+			order_id: orderId
+			order_number: orderNumber
+			amount
+			currency
+		}
+	}
+`;
+
+export const VERIFY_PAYMENT = `
+	mutation VerifyPayment(
+		$order_id: UUID!,
+		$provider_payment_id: String!,
+		$provider_order_id: String!,
+		$signature: String!
+	) {
+		verification: verifyPayment(
+			orderId: $order_id,
+			providerPaymentId: $provider_payment_id,
+			providerOrderId: $provider_order_id,
+			signature: $signature
+		) {
+			success
+			order_id: orderId
+			payment_status: paymentStatus
+			message
 		}
 	}
 `;

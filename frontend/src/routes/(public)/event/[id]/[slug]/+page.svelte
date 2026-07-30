@@ -47,7 +47,7 @@
 	}
 
 	function getTickets() {
-		const target = `/event/${$page.params.slug}/checkout`;
+		const target = `/event/${$page.params.id}/${$page.params.slug}/checkout`;
 		if (ambientAuth.isAuthenticated) goto(target);
 		else ambientAuth.requireAuth({ kind: 'get-tickets', label: 'Get tickets', execute: () => goto(target) });
 	}

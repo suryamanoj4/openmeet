@@ -86,15 +86,18 @@ class PaymentService(BaseService[Payment]):
         if not payment:
             return None
 
+        if payment.status == "completed":
+            return payment
         payment.status = "completed"
         if extra_data:
             payment.extra_data = {**payment.extra_data, **extra_data}
 
         order = await self.session.get(Order, payment.order_id)
         if order:
+            from gql_schema.services.order_service import OrderService
+
             order.payment_status = "paid"
-            order.status = "confirmed"
-            order.confirmed_at = datetime.utcnow()
+            await OrderService(self.session).confirm_order(order)
 
         await self.session.flush()
         await self.session.refresh(payment)
