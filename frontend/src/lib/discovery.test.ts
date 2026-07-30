@@ -93,6 +93,32 @@ test('calendar filters use local calendar boundaries', () => {
 	);
 });
 
+test('this-week filter ends after the current Sunday', () => {
+	const sunday = new Date(2026, 7, 2, 12);
+	const events = [
+		event({ id: 'sunday', start_date: new Date(2026, 7, 2, 18).toISOString() }),
+		event({ id: 'next-monday', start_date: new Date(2026, 7, 3, 10).toISOString() })
+	];
+
+	assert.deepEqual(
+		filterEvents(events, { date: 'week' }, sunday).map((item) => item.id),
+		['sunday']
+	);
+});
+
+test('empty discovery results and default sorting preserve source order', () => {
+	assert.deepEqual(filterEvents([], {}), []);
+	const events = [
+		event({ id: 'online-b', name: 'B', is_online: true }),
+		event({ id: 'online-a', name: 'A', is_online: true })
+	];
+	assert.deepEqual(filterEvents(events, {}).map((item) => item.id), [
+		'online-b',
+		'online-a'
+	]);
+	assert.deepEqual(getVenues(events), ['Online']);
+});
+
 test('date sorting and calendar grouping are chronological', () => {
 	const events = [
 		event({ id: 'later', name: 'Later', start_date: '2026-08-12T10:00:00Z' }),

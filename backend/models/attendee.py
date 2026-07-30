@@ -6,7 +6,7 @@ from typing import Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import Column
+from sqlalchemy import Column, UniqueConstraint
 
 
 class AttendeeBase(SQLModel):
@@ -14,6 +14,7 @@ class AttendeeBase(SQLModel):
 
     order_item_id: uuid.UUID = Field(foreign_key="order_items.id", ondelete="CASCADE")
     ticket_id: uuid.UUID = Field(foreign_key="tickets.id", ondelete="RESTRICT")
+    sequence_number: int = Field(default=0, ge=0)
     first_name: str = Field(max_length=100)
     last_name: str = Field(max_length=100)
     email: str = Field(max_length=255)
@@ -31,6 +32,13 @@ class Attendee(AttendeeBase, table=True):
     """Attendee model (individual ticket holder)."""
 
     __tablename__ = "attendees"
+    __table_args__ = (
+        UniqueConstraint(
+            "order_item_id",
+            "sequence_number",
+            name="uq_attendees_order_item_sequence",
+        ),
+    )
 
     id: Optional[uuid.UUID] = Field(default_factory=uuid.uuid4, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)

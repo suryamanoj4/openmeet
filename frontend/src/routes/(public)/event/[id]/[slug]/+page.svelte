@@ -8,7 +8,7 @@
 	import EventPageRenderer from '$lib/components/event-page-renderer.svelte';
 	import Button from '$lib/components/ui/button.svelte';
 	import Card from '$lib/components/ui/card.svelte';
-	import { normalizeEventPageBlocks } from '$lib/event-page';
+	import { normalizeEventPageBlocks, safeLink } from '$lib/event-page';
 	import type { Event, Ticket } from '$lib/graphql/types';
 	import { Calendar, Clock, Globe, MapPin, Users } from 'lucide-svelte';
 
@@ -71,6 +71,9 @@
 			<Card class="flex items-center gap-3 p-4">{#if event.is_online}<Globe size={18} class="text-primary" />{:else}<MapPin size={18} class="text-primary" />{/if}<div><p class="text-label-sm text-on-surface-variant">Location</p><p class="font-semibold">{event.venue_city || (event.is_online ? 'Online' : 'TBD')}</p></div></Card>
 			<Card class="flex items-center gap-3 p-4"><Users size={18} class="text-primary" /><div><p class="text-label-sm text-on-surface-variant">Capacity</p><p class="font-semibold">{event.max_attendees ?? 'Unlimited'}</p></div></Card>
 		</div>
+		{#if event.is_online && event.online_url && safeLink(event.online_url) !== '#'}
+			<a class="mb-10 inline-flex items-center gap-2 font-semibold text-primary hover:underline" href={safeLink(event.online_url)} target="_blank" rel="noreferrer">Open online event <Globe size={16} /></a>
+		{/if}
 
 		<EventPageRenderer blocks={normalizeEventPageBlocks(result.page.blocks)} />
 

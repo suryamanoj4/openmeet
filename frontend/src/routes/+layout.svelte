@@ -59,9 +59,13 @@
 
 	function handleHeaderSearch(event: SubmitEvent) {
 		event.preventDefault();
-		const params = new URLSearchParams();
+		const params =
+			page.url.pathname === '/'
+				? new URLSearchParams(page.url.searchParams)
+				: new URLSearchParams();
 		params.set('view', 'explore');
 		if (headerSearch.trim()) params.set('q', headerSearch.trim());
+		else params.delete('q');
 		goto(`/?${params.toString()}#discover`);
 	}
 </script>

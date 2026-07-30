@@ -170,6 +170,7 @@ def payment_to_type(payment) -> dict:
         "id": payment.id,
         "order_id": payment.order_id,
         "provider": payment.provider,
+        "provider_order_id": payment.provider_order_id,
         "provider_payment_id": payment.provider_payment_id,
         "amount": payment.amount,
         "currency": payment.currency,
@@ -181,6 +182,8 @@ def payment_to_type(payment) -> dict:
         "refund_reason": payment.refund_reason,
         "refunded_at": payment.refunded_at,
         "created_at": payment.created_at,
+        "updated_at": payment.updated_at,
+        "is_active": payment.is_active,
     }
 
 

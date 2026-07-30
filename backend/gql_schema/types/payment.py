@@ -11,7 +11,8 @@ class PaymentType:
     id: uuid.UUID
     order_id: uuid.UUID
     provider: str
-    provider_payment_id: str
+    provider_order_id: str
+    provider_payment_id: Optional[str]
     amount: float
     currency: str
     status: str

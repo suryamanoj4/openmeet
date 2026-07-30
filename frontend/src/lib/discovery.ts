@@ -1,13 +1,14 @@
 import type { Event } from './graphql/types';
 
 export type DiscoveryView = 'explore' | 'categories' | 'calendar' | 'venues';
+export type DiscoverySort = 'relevant' | 'date' | 'name';
 
 export interface DiscoveryFilters {
 	q?: string;
 	category?: string;
 	date?: string;
 	venue?: string;
-	sort?: string;
+	sort?: DiscoverySort;
 }
 
 export function buildDiscoveryUrl(
@@ -85,7 +86,8 @@ function matchesDateFilter(event: Event, filter: string | undefined, now: Date):
 		end = new Date(start);
 		end.setDate(end.getDate() + 1);
 	} else if (filter === 'week') {
-		end.setDate(end.getDate() + (7 - end.getDay()));
+		const daysUntilMonday = (8 - end.getDay()) % 7 || 7;
+		end.setDate(end.getDate() + daysUntilMonday);
 	} else if (filter === 'month') {
 		start = new Date(today.getFullYear(), today.getMonth() + 1, 1);
 		end = new Date(today.getFullYear(), today.getMonth() + 2, 1);

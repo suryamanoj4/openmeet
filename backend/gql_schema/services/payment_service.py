@@ -24,6 +24,26 @@ class PaymentService(BaseService[Payment]):
         )
         return result.first()
 
+    async def get_by_provider_order_id(
+        self, provider_order_id: str
+    ) -> Optional[Payment]:
+        result = await self.session.exec(
+            select(Payment).where(Payment.provider_order_id == provider_order_id)
+        )
+        return result.first()
+
+    async def get_pending_by_order(
+        self, order_id: UUID, provider: str
+    ) -> Optional[Payment]:
+        result = await self.session.exec(
+            select(Payment).where(
+                Payment.order_id == order_id,
+                Payment.provider == provider,
+                Payment.status == "pending",
+            )
+        )
+        return result.first()
+
     async def get_by_order(
         self,
         order_id: UUID,
@@ -50,9 +70,10 @@ class PaymentService(BaseService[Payment]):
         self,
         order_id: UUID,
         provider: str,
-        provider_payment_id: str,
+        provider_order_id: str,
         amount: float,
         currency: str,
+        provider_payment_id: Optional[str] = None,
         payment_method: Optional[str] = None,
         extra_data: Optional[dict] = None,
     ) -> Payment:
@@ -64,6 +85,7 @@ class PaymentService(BaseService[Payment]):
         payment = Payment(
             order_id=order_id,
             provider=provider,
+            provider_order_id=provider_order_id,
             provider_payment_id=provider_payment_id,
             amount=amount,
             currency=currency,
@@ -78,21 +100,50 @@ class PaymentService(BaseService[Payment]):
 
     async def mark_payment_success(
         self,
-        provider_payment_id: str,
+        provider_order_id: str,
+        provider_payment_id: Optional[str] = None,
         extra_data: Optional[dict] = None,
     ) -> Optional[Payment]:
         """Mark payment as successful (called from webhook)."""
-        payment = await self.get_by_provider_payment_id(provider_payment_id)
+        existing = await self.get_by_provider_order_id(provider_order_id)
+        if not existing:
+            return None
+
+        order_result = await self.session.exec(
+            select(Order).where(Order.id == existing.order_id).with_for_update()
+        )
+        order = order_result.first()
+        payment_result = await self.session.exec(
+            select(Payment)
+            .where(Payment.id == existing.id)
+            .with_for_update()
+        )
+        payment = payment_result.first()
         if not payment:
             return None
 
         if payment.status == "completed":
+            if (
+                provider_payment_id
+                and payment.provider_payment_id
+                and payment.provider_payment_id != provider_payment_id
+            ):
+                raise ValueError("Provider payment ID does not match")
             return payment
+        if payment.status != "pending":
+            raise ValueError(f"Cannot complete a {payment.status} payment")
+        if (
+            provider_payment_id
+            and payment.provider_payment_id
+            and payment.provider_payment_id != provider_payment_id
+        ):
+            raise ValueError("Provider payment ID does not match")
+        if provider_payment_id:
+            payment.provider_payment_id = provider_payment_id
         payment.status = "completed"
         if extra_data:
             payment.extra_data = {**payment.extra_data, **extra_data}
 
-        order = await self.session.get(Order, payment.order_id)
         if order:
             from gql_schema.services.order_service import OrderService
 
@@ -105,22 +156,40 @@ class PaymentService(BaseService[Payment]):
 
     async def mark_payment_failed(
         self,
-        provider_payment_id: str,
+        provider_order_id: str,
         failure_reason: Optional[str] = None,
         extra_data: Optional[dict] = None,
     ) -> Optional[Payment]:
         """Mark payment as failed (called from webhook)."""
-        payment = await self.get_by_provider_payment_id(provider_payment_id)
-        if not payment:
+        existing = await self.get_by_provider_order_id(provider_order_id)
+        if not existing:
             return None
 
+        order_result = await self.session.exec(
+            select(Order).where(Order.id == existing.order_id).with_for_update()
+        )
+        order = order_result.first()
+        payment_result = await self.session.exec(
+            select(Payment)
+            .where(Payment.id == existing.id)
+            .with_for_update()
+        )
+        payment = payment_result.first()
+        if not payment:
+            return None
+        if payment.status == "failed":
+            return payment
+        if payment.status == "completed":
+            raise ValueError("A completed payment cannot be marked failed")
         payment.status = "failed"
         payment.failure_reason = failure_reason
         if extra_data:
             payment.extra_data = {**payment.extra_data, **extra_data}
 
-        order = await self.session.get(Order, payment.order_id)
         if order:
+            from gql_schema.services.order_service import OrderService
+
+            await OrderService(self.session).cancel_order(order)
             order.payment_status = "failed"
 
         await self.session.flush()
@@ -134,12 +203,21 @@ class PaymentService(BaseService[Payment]):
         refund_reason: Optional[str] = None,
     ) -> Optional[Payment]:
         """Process a refund for a payment."""
-        payment = await self.get_by_provider_payment_id(provider_payment_id)
+        result = await self.session.exec(
+            select(Payment)
+            .where(Payment.provider_payment_id == provider_payment_id)
+            .with_for_update()
+        )
+        payment = result.first()
         if not payment:
             return None
 
+        if payment.status == "refunded":
+            return payment
         if payment.status != "completed":
             raise ValueError("Can only refund completed payments")
+        if refund_amount <= 0 or refund_amount > float(payment.amount):
+            raise ValueError("Refund amount must be positive and no more than the payment")
 
         payment.refunded_amount = float(refund_amount)
         payment.refund_reason = refund_reason

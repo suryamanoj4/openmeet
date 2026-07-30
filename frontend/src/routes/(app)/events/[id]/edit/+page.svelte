@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { getEvent, updateEvent } from '$lib/services/events';
-	import { minimumFutureDatetime, toDatetimeLocalValue, toUpdateEventInput, validateEventSchedule } from '$lib/services/event-input';
+	import { minimumFutureDatetime, toDatetimeLocalValue, toUpdateEventInput, validateEventSchedule, validateRegistrationWindow } from '$lib/services/event-input';
 	import Button from '$lib/components/ui/button.svelte';
 	import Input from '$lib/components/ui/input.svelte';
 	import Label from '$lib/components/ui/label.svelte';
@@ -16,8 +16,12 @@
 	let name = $state(''); let slug = $state(''); let description = $state('');
 	let event_type = $state('conference'); let venue_city = $state(''); let is_online = $state(false);
 	let start_date = $state(''); let end_date = $state('');
+	let timezone = $state('UTC'); let registration_start = $state(''); let registration_end = $state('');
+	let venue_name = $state(''); let venue_address = $state(''); let venue_country = $state('');
+	let online_url = $state(''); let max_attendees = $state<number | null>(null);
+	let min_tickets_per_order = $state(1); let max_tickets_per_order = $state(10);
 	let event_status = $state('draft'); let original_start_date = $state('');
-	let cover_image_url = $state('');
+	let cover_image_url = $state(''); let banner_image_url = $state('');
 	let error = $state<string | null>(null); let saving = $state(false); let loading = $state(true);
 	let eid = $state('');
 
@@ -27,9 +31,18 @@
 		if (event) {
 			name = event.name; slug = event.slug; description = event.description || '';
 			event_type = event.event_type; venue_city = event.venue_city || '';
+			timezone = event.timezone || 'UTC'; venue_name = event.venue_name || '';
+			venue_address = typeof event.venue_address?.formatted === 'string' ? event.venue_address.formatted : '';
+			venue_country = event.venue_country || ''; online_url = event.online_url || '';
+			max_attendees = event.max_attendees ?? null;
+			min_tickets_per_order = event.min_tickets_per_order;
+			max_tickets_per_order = event.max_tickets_per_order;
+			registration_start = event.registration_start ? toDatetimeLocalValue(event.registration_start) : '';
+			registration_end = event.registration_end ? toDatetimeLocalValue(event.registration_end) : '';
 			start_date = toDatetimeLocalValue(event.start_date); end_date = toDatetimeLocalValue(event.end_date);
 			original_start_date = start_date; event_status = event.status;
 			is_online = event.is_online; cover_image_url = event.cover_image_url || '';
+			banner_image_url = event.banner_image_url || '';
 		}
 		loading = false;
 	});
@@ -43,8 +56,24 @@
 				error = scheduleError;
 				return;
 			}
+			const registrationError = validateRegistrationWindow(
+				registration_start,
+				registration_end,
+				start_date,
+				end_date,
+				new Date(),
+				event_status !== 'published'
+			);
+			if (registrationError) {
+				error = registrationError;
+				return;
+			}
 			await updateEvent(eid, toUpdateEventInput({
-				name, slug, description, event_type, start_date, end_date, venue_city, is_online, cover_image_url
+				name, slug, description, event_type, start_date, end_date,
+				timezone, registration_start, registration_end,
+				venue_name, venue_address, venue_city, venue_country,
+				is_online, online_url, max_attendees, min_tickets_per_order,
+				max_tickets_per_order, cover_image_url, banner_image_url
 			}));
 			goto(`/events/${eid}`);
 		} catch (err) { error = err instanceof Error ? err.message : 'Failed'; } finally { saving = false; }
@@ -74,11 +103,30 @@
 						<div class="space-y-1.5"><Label for="sd">Start Date</Label><Input id="sd" type="datetime-local" min={minimumStart} bind:value={start_date} required /></div>
 						<div class="space-y-1.5"><Label for="ed">End Date</Label><Input id="ed" type="datetime-local" min={start_date || minimumStart} bind:value={end_date} required /></div>
 					</div>
+					<div class="space-y-1.5"><Label for="timezone">Timezone</Label><Input id="timezone" bind:value={timezone} required /></div>
+					<div class="grid grid-cols-2 gap-4">
+						<div class="space-y-1.5"><Label for="registration-start">Registration Opens</Label><Input id="registration-start" type="datetime-local" max={start_date || undefined} bind:value={registration_start} /></div>
+						<div class="space-y-1.5"><Label for="registration-end">Registration Closes</Label><Input id="registration-end" type="datetime-local" min={registration_start || undefined} max={end_date || undefined} bind:value={registration_end} /></div>
+					</div>
+					<div class="grid grid-cols-2 gap-4">
+						<div class="space-y-1.5"><Label for="venue-name">Venue Name</Label><Input id="venue-name" bind:value={venue_name} /></div>
+						<div class="space-y-1.5"><Label for="country">Country</Label><Input id="country" bind:value={venue_country} /></div>
+					</div>
+					<div class="space-y-1.5"><Label for="address">Venue Address</Label><Input id="address" bind:value={venue_address} /></div>
 					<div class="grid grid-cols-2 gap-4">
 						<div class="space-y-1.5"><Label for="city">City</Label><Input id="city" bind:value={venue_city} /></div>
 						<div class="space-y-1.5 flex items-end pb-2"><label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" bind:checked={is_online} class="w-4 h-4 rounded border-outline-variant text-primary" /><span class="text-body-md text-fg">Online event</span></label></div>
 					</div>
-					<div class="space-y-1.5"><Label for="cover">Cover Image URL</Label><Input id="cover" bind:value={cover_image_url} /></div>
+					{#if is_online}<div class="space-y-1.5"><Label for="online-url">Online Event URL</Label><Input id="online-url" type="url" bind:value={online_url} /></div>{/if}
+					<div class="grid grid-cols-3 gap-4">
+						<div class="space-y-1.5"><Label for="capacity">Capacity</Label><Input id="capacity" type="number" min="1" step="1" bind:value={max_attendees} /></div>
+						<div class="space-y-1.5"><Label for="minimum-tickets">Minimum / order</Label><Input id="minimum-tickets" type="number" min="1" step="1" bind:value={min_tickets_per_order} /></div>
+						<div class="space-y-1.5"><Label for="maximum-tickets">Maximum / order</Label><Input id="maximum-tickets" type="number" min={min_tickets_per_order} step="1" bind:value={max_tickets_per_order} /></div>
+					</div>
+					<div class="grid grid-cols-2 gap-4">
+						<div class="space-y-1.5"><Label for="cover">Cover Image URL</Label><Input id="cover" type="url" bind:value={cover_image_url} /></div>
+						<div class="space-y-1.5"><Label for="banner">Banner Image URL</Label><Input id="banner" type="url" bind:value={banner_image_url} /></div>
+					</div>
 					<div class="flex gap-3 pt-2"><Button type="submit" variant="primary" size="lg" isLoading={saving}>Save</Button><Button type="button" variant="outline" size="lg" onclick={() => goto(`/events/${eid}`)}>Cancel</Button></div>
 				</form>
 			{/if}

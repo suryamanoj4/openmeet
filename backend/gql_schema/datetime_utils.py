@@ -5,7 +5,12 @@ from typing import Optional
 
 
 def to_naive_utc(value: Optional[datetime]) -> Optional[datetime]:
-    """Convert an aware datetime to naive UTC for existing database columns."""
+    """Normalize to the database's naive-UTC convention.
+
+    GraphQL inputs are expected to include an offset. Existing ORM values are
+    already naive UTC, so naive values are deliberately preserved rather than
+    being interpreted in the server's local timezone.
+    """
     if value is None or value.tzinfo is None:
         return value
     return value.astimezone(timezone.utc).replace(tzinfo=None)

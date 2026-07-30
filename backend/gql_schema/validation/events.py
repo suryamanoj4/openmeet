@@ -48,6 +48,8 @@ class EventScheduleSchema(BaseModel):
         )
         if registration_start and registration_end and registration_end <= registration_start:
             raise ValueError("registration end must be after registration start")
+        if registration_start and registration_start > start:
+            raise ValueError("registration start must not be after the event starts")
         if registration_end and registration_end > end:
             raise ValueError("registration end must not be after the event ends")
         return self
@@ -58,8 +60,11 @@ class NewEventScheduleSchema(EventScheduleSchema):
 
     @model_validator(mode="after")
     def starts_in_future(self) -> "NewEventScheduleSchema":
-        if _aware_utc(self.start_date) <= datetime.now(timezone.utc):
+        now = datetime.now(timezone.utc)
+        if _aware_utc(self.start_date) <= now:
             raise ValueError("start date must be in the future")
+        if self.registration_start and _aware_utc(self.registration_start) <= now:
+            raise ValueError("registration start must be in the future")
         return self
 
 
