@@ -395,6 +395,8 @@ class Query:
         auth_user = require_authenticated(info)
         if event_id:
             await require_event_organizer(info, event_id)
+        else:
+            require_platform_admin(info)
         service = OrderService(session)
         if event_id or auth_user.is_superuser or auth_user.role == "admin":
             orders = await service.get_all(
