@@ -6,6 +6,7 @@ import string
 from datetime import datetime, timedelta
 
 from faker import Faker
+from sqlmodel import select
 
 from auth import hash_password
 from database import async_engine, AsyncSessionLocal
@@ -48,6 +49,11 @@ def _slug(text: str) -> str:
 
 async def seed():
     async with AsyncSessionLocal() as session:
+        existing_user = await session.exec(select(User.id).limit(1))
+        if existing_user.first() is not None:
+            print("Database already contains users; skipping sample data.")
+            return
+
         # ---------- Users ----------
         admin = User(
             email="admin@openmeet.local",
@@ -235,10 +241,11 @@ async def seed():
                             ticket.sold_quantity += order_qty
 
                             # -------- Attendees ----------
-                            for _ in range(order_qty):
+                            for seq in range(order_qty):
                                 attendee = Attendee(
                                     order_item_id=order_item.id,
                                     ticket_id=ticket.id,
+                                    sequence_number=seq,
                                     first_name=fake.first_name(),
                                     last_name=fake.last_name(),
                                     email=fake.email(),
