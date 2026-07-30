@@ -12,7 +12,7 @@
 		getVenues,
 		groupEventsByDay
 	} from '$lib/discovery';
-	import type { DiscoveryView } from '$lib/discovery';
+	import type { DiscoverySort, DiscoveryView } from '$lib/discovery';
 	import {
 		Search,
 		MapPin,
@@ -37,7 +37,9 @@
 	let category = $derived(page.url.searchParams.get('category') ?? '');
 	let dateFilter = $derived(page.url.searchParams.get('date') ?? '');
 	let venue = $derived(page.url.searchParams.get('venue') ?? '');
-	let sort = $derived(page.url.searchParams.get('sort') ?? (view === 'calendar' ? 'date' : 'relevant'));
+	let sort = $derived(
+		(page.url.searchParams.get('sort') ?? (view === 'calendar' ? 'date' : 'relevant')) as DiscoverySort
+	);
 
 	let categories = $derived(getCategories(data.events));
 	let venues = $derived(getVenues(data.events));
