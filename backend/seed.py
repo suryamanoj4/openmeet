@@ -256,6 +256,7 @@ async def seed():
                                 payment = Payment(
                                     order_id=order.id,
                                     provider="razorpay",
+                                    provider_order_id=f"order_{fake.uuid4()}",
                                     provider_payment_id=f"pay_{fake.uuid4()}",
                                     amount=total,
                                     currency=ticket.currency,

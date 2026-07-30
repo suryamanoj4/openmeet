@@ -3,6 +3,14 @@ import { requireMutationResult } from '$lib/graphql/result';
 import { ORDERS, ORDER, CREATE_ORDER, CONFIRM_ORDER, CREATE_PAYMENT_ORDER, VERIFY_PAYMENT } from '$lib/graphql/queries/orders';
 
 interface OrderSummary { id: string; order_number: string; status: string; customer_email: string; customer_name: string; total_amount: number; currency: string; payment_status: string }
+export interface PaymentOrder {
+	provider_order_id: string;
+	provider_key_id: string;
+	order_id: string;
+	order_number: string;
+	amount: number;
+	currency: string;
+}
 
 export async function listOrders(eventId?: string): Promise<OrderSummary[]> {
 	const r = await graphqlClient.query<{ orders: OrderSummary[] }>(ORDERS, { event_id: eventId || null }).toPromise();
@@ -25,8 +33,8 @@ export async function confirmOrder(id: string): Promise<{ id: string; status: st
 	return requireMutationResult(r, 'confirm_order', 'Failed to confirm order');
 }
 
-export async function createPaymentOrder(orderId: string) {
-	const r = await graphqlClient.mutation<{ payment: { provider_order_id: string; provider_key_id: string; order_id: string; order_number: string; amount: number; currency: string } }>(
+export async function createPaymentOrder(orderId: string): Promise<PaymentOrder> {
+	const r = await graphqlClient.mutation<{ payment: PaymentOrder }>(
 		CREATE_PAYMENT_ORDER,
 		{ order_id: orderId }
 	).toPromise();

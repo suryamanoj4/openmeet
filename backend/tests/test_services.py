@@ -364,7 +364,7 @@ class TestPaymentService:
         payment = await payment_svc.create_payment(
             order_id=order.id,
             provider="razorpay",
-            provider_payment_id="order_test_123",
+            provider_order_id="order_test_123",
             amount=1000.0,
             currency="INR",
         )
@@ -390,13 +390,15 @@ class TestPaymentService:
         await payment_svc.create_payment(
             order_id=order.id,
             provider="razorpay",
-            provider_payment_id="order_test_456",
+            provider_order_id="order_test_456",
             amount=1000.0,
             currency="INR",
         )
         await db_session.commit()
 
-        success = await payment_svc.mark_payment_success("order_test_456")
+        success = await payment_svc.mark_payment_success(
+            "order_test_456", provider_payment_id="pay_test_456"
+        )
         await db_session.commit()
         assert success is not None
         assert success.status == "completed"
@@ -421,7 +423,7 @@ class TestPaymentService:
         await payment_svc.create_payment(
             order_id=order.id,
             provider="razorpay",
-            provider_payment_id="order_test_789",
+            provider_order_id="order_test_789",
             amount=1000.0,
             currency="INR",
         )
@@ -450,16 +452,18 @@ class TestPaymentService:
         await payment_svc.create_payment(
             order_id=order.id,
             provider="razorpay",
-            provider_payment_id="order_test_refund",
+            provider_order_id="order_test_refund",
             amount=1000.0,
             currency="INR",
         )
         await db_session.commit()
-        await payment_svc.mark_payment_success("order_test_refund")
+        await payment_svc.mark_payment_success(
+            "order_test_refund", provider_payment_id="pay_test_refund"
+        )
         await db_session.commit()
 
         refunded = await payment_svc.process_refund(
-            "order_test_refund", refund_amount=500.0, refund_reason="Partial refund"
+            "pay_test_refund", refund_amount=500.0, refund_reason="Partial refund"
         )
         await db_session.commit()
         assert refunded.status == "refunded"

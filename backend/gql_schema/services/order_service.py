@@ -1,17 +1,14 @@
 """Order service for managing ticket orders."""
 
 import uuid
-import random
-import string
 from datetime import datetime, timedelta
 from typing import Optional, List
 from uuid import UUID
 
+from sqlalchemy import func
 from sqlmodel import select
-from strawberry import Info
 
 from gql_schema.services.base import BaseService
-from gql_schema.services.mapping import type_mapper
 from models import Attendee, Order, OrderItem, Ticket, Event
 
 
@@ -21,7 +18,7 @@ class OrderService(BaseService[Order]):
     def generate_order_number(self) -> str:
         """Generate unique order number."""
         timestamp = datetime.utcnow().strftime("%Y%m%d")
-        random_part = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        random_part = uuid.uuid4().hex[:10].upper()
         return f"OM-{timestamp}-{random_part}"
 
     async def get_by_order_number(self, order_number: str) -> Optional[Order]:
@@ -33,6 +30,12 @@ class OrderService(BaseService[Order]):
     async def get_by_id(self, id: UUID) -> Optional[Order]:
         result = await self.session.exec(
             select(Order).where(Order.id == id)
+        )
+        return result.first()
+
+    async def get_by_id_for_update(self, id: UUID) -> Optional[Order]:
+        result = await self.session.exec(
+            select(Order).where(Order.id == id).with_for_update()
         )
         return result.first()
 
@@ -88,7 +91,10 @@ class OrderService(BaseService[Order]):
         created_by: Optional[UUID] = None,
     ) -> Order:
         """Create a new pending order with items."""
-        event = await self.session.get(Event, event_id)
+        event_result = await self.session.exec(
+            select(Event).where(Event.id == event_id).with_for_update()
+        )
+        event = event_result.first()
         now = datetime.utcnow()
         if not event or not event.is_active:
             raise ValueError("Event not found")
@@ -108,7 +114,18 @@ class OrderService(BaseService[Order]):
         order_items = []
 
         currencies: set[str] = set()
-        for item_data in items:
+        requested_quantity = sum(item["quantity"] for item in items)
+        if event.max_attendees is not None:
+            sold_result = await self.session.exec(
+                select(func.coalesce(func.sum(Ticket.sold_quantity), 0)).where(
+                    Ticket.event_id == event_id,
+                )
+            )
+            reserved = int(sold_result.one())
+            if reserved + requested_quantity > event.max_attendees:
+                raise ValueError("Event capacity is no longer available")
+
+        for item_data in sorted(items, key=lambda item: str(item["ticket_id"])):
             ticket_result = await self.session.exec(
                 select(Ticket)
                 .where(Ticket.id == item_data["ticket_id"])
@@ -190,6 +207,12 @@ class OrderService(BaseService[Order]):
 
     async def confirm_order(self, order: Order) -> Order:
         """Mark order as confirmed (paid)."""
+        locked_result = await self.session.exec(
+            select(Order).where(Order.id == order.id).with_for_update()
+        )
+        order = locked_result.first()
+        if not order:
+            raise ValueError("Order not found")
         if order.status == "confirmed":
             return order
         if order.status != "pending":
@@ -203,26 +226,29 @@ class OrderService(BaseService[Order]):
         return order
 
     async def _create_attendees(self, order: Order) -> None:
-        existing = await self.session.exec(
-            select(Attendee)
-            .join(OrderItem, Attendee.order_item_id == OrderItem.id)
-            .where(OrderItem.order_id == order.id)
-        )
-        if existing.first():
-            return
-
         item_result = await self.session.exec(
-            select(OrderItem).where(OrderItem.order_id == order.id)
+            select(OrderItem)
+            .where(OrderItem.order_id == order.id)
+            .order_by(OrderItem.id)
         )
         name_parts = order.customer_name.strip().split(maxsplit=1)
         first_name = name_parts[0] if name_parts else "Guest"
         last_name = name_parts[1] if len(name_parts) > 1 else ""
         for item in item_result.all():
-            for _ in range(item.quantity):
+            existing_result = await self.session.exec(
+                select(Attendee.sequence_number).where(
+                    Attendee.order_item_id == item.id
+                )
+            )
+            existing_sequences = set(existing_result.all())
+            for sequence_number in range(item.quantity):
+                if sequence_number in existing_sequences:
+                    continue
                 self.session.add(
                     Attendee(
                         order_item_id=item.id,
                         ticket_id=item.ticket_id,
+                        sequence_number=sequence_number,
                         first_name=first_name,
                         last_name=last_name,
                         email=order.customer_email,
@@ -241,8 +267,13 @@ class OrderService(BaseService[Order]):
             item_result = await self.session.exec(
                 select(OrderItem).where(OrderItem.order_id == order.id)
             )
-            for item in item_result.all():
-                ticket = await self.session.get(Ticket, item.ticket_id)
+            for item in sorted(item_result.all(), key=lambda value: str(value.ticket_id)):
+                ticket_result = await self.session.exec(
+                    select(Ticket)
+                    .where(Ticket.id == item.ticket_id)
+                    .with_for_update()
+                )
+                ticket = ticket_result.first()
                 if ticket:
                     ticket.sold_quantity = max(0, ticket.sold_quantity - item.quantity)
 

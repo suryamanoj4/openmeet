@@ -93,6 +93,7 @@ async def _process_webhook(
     provider_name: str,
     event_type: str,
     provider_order_id: str,
+    provider_payment_id: Optional[str] = None,
     failure_reason: Optional[str] = None,
     extra: Optional[dict] = None,
 ):
@@ -101,7 +102,11 @@ async def _process_webhook(
         service = PaymentService(session)
 
         if event_type in ("payment.captured", "order.paid"):
-            await service.mark_payment_success(provider_order_id, extra_data=extra)
+            await service.mark_payment_success(
+                provider_order_id,
+                provider_payment_id=provider_payment_id,
+                extra_data=extra,
+            )
         elif event_type == "payment.failed":
             await service.mark_payment_failed(
                 provider_order_id, failure_reason=failure_reason, extra_data=extra
@@ -133,11 +138,13 @@ async def payment_webhook(request: Request):
     entity = payload.get("payload", {})
 
     provider_order_id = ""
+    provider_payment_id = None
     failure_reason = None
 
     if "payment" in entity:
         payment_entity = entity["payment"]["entity"]
         provider_order_id = payment_entity.get("order_id", "")
+        provider_payment_id = payment_entity.get("id")
         if event_type == "payment.failed":
             failure_reason = payment_entity.get("error_description")
     elif "order" in entity:
@@ -150,6 +157,7 @@ async def payment_webhook(request: Request):
         provider_name="razorpay",
         event_type=event_type,
         provider_order_id=provider_order_id,
+        provider_payment_id=provider_payment_id,
         failure_reason=failure_reason,
         extra={"webhook_payload": payload},
     )

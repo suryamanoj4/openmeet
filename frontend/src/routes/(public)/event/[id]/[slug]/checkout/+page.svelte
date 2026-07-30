@@ -5,6 +5,7 @@
 	import { graphqlClient } from '$lib/graphql/client';
 	import { PUBLIC_EVENT } from '$lib/graphql/queries/events';
 	import { createOrder, createPaymentOrder, verifyPayment } from '$lib/services/orders';
+	import type { PaymentOrder } from '$lib/services/orders';
 	import Button from '$lib/components/ui/button.svelte';
 	import Card from '$lib/components/ui/card.svelte';
 	import Input from '$lib/components/ui/input.svelte';
@@ -32,11 +33,16 @@
 	let email = $state('');
 	let name = $state('');
 	let phone = $state('');
+	let paymentAttempt = $state<PaymentOrder | null>(null);
 
 	let total = $derived(tickets.reduce((sum, ticket) => sum + (quantities[ticket.id] || 0) * Number(ticket.price), 0));
 	let hasItems = $derived(tickets.some((ticket) => (quantities[ticket.id] || 0) > 0));
 
 	onMount(async () => {
+		const confirmedOrder = $page.url.searchParams.get('order');
+		if ($page.url.searchParams.get('status') === 'success' && confirmedOrder) {
+			success = `Order #${confirmedOrder} confirmed.`;
+		}
 		const response = await graphqlClient.query<{ public_event: { event: Event; tickets: Ticket[] } | null }>(
 			PUBLIC_EVENT,
 			{ id: $page.params.id, slug: $page.params.slug }
@@ -66,6 +72,57 @@
 		return loaded;
 	}
 
+	async function openPayment(payment: PaymentOrder): Promise<void> {
+		if (!event) return;
+		const Razorpay = await loadRazorpay();
+		await new Promise<void>((resolve, reject) => {
+			const checkout = new Razorpay({
+				key: payment.provider_key_id,
+				order_id: payment.provider_order_id,
+				amount: payment.amount,
+				currency: payment.currency,
+				name: event?.name,
+				prefill: { name, email, contact: phone },
+				handler: async (result: RazorpayResult) => {
+					try {
+						const verification = await verifyPayment({
+							order_id: payment.order_id,
+							provider_payment_id: result.razorpay_payment_id,
+							provider_order_id: result.razorpay_order_id,
+							signature: result.razorpay_signature
+						});
+						if (!verification.success) throw new Error(verification.message);
+						success = `Order #${payment.order_number} confirmed.`;
+						paymentAttempt = null;
+						await goto(
+							`/event/${$page.params.id}/${$page.params.slug}/checkout?status=success&order=${encodeURIComponent(payment.order_number)}`,
+							{ replaceState: true, noScroll: true }
+						);
+						resolve();
+					} catch (verificationError) {
+						reject(verificationError);
+					}
+				},
+				modal: { ondismiss: () => reject(new Error('Payment was cancelled')) }
+			});
+			checkout.on('payment.failed', (response) => reject(new Error(response.error?.description || 'Payment failed')));
+			checkout.open();
+		});
+	}
+
+	async function retryPayment() {
+		if (!paymentAttempt) return;
+		error = null;
+		submitting = true;
+		try {
+			await openPayment(paymentAttempt);
+		} catch (retryError) {
+			error = retryError instanceof Error ? retryError.message : 'Payment retry failed';
+		} finally {
+			submitting = false;
+		}
+	}
+
 	async function handleSubmit(submitEvent: SubmitEvent) {
 		submitEvent.preventDefault();
 		if (!event || !hasItems) return;
@@ -83,39 +140,16 @@
 			});
 			if (Number(order.total_amount) === 0 || order.payment_status === 'free') {
 				success = `Order #${order.order_number} confirmed.`;
+				await goto(
+					`/event/${$page.params.id}/${$page.params.slug}/checkout?status=success&order=${encodeURIComponent(order.order_number)}`,
+					{ replaceState: true, noScroll: true }
+				);
 				return;
 			}
 
 			const payment = await createPaymentOrder(order.id);
-			const Razorpay = await loadRazorpay();
-			await new Promise<void>((resolve, reject) => {
-				const checkout = new Razorpay({
-					key: payment.provider_key_id,
-					order_id: payment.provider_order_id,
-					amount: payment.amount,
-					currency: payment.currency,
-					name: event?.name,
-					prefill: { name, email, contact: phone },
-					handler: async (result: RazorpayResult) => {
-						try {
-							const verification = await verifyPayment({
-								order_id: order.id,
-								provider_payment_id: result.razorpay_payment_id,
-								provider_order_id: result.razorpay_order_id,
-								signature: result.razorpay_signature
-							});
-							if (!verification.success) throw new Error(verification.message);
-							success = `Order #${order.order_number} confirmed.`;
-							resolve();
-						} catch (verificationError) {
-							reject(verificationError);
-						}
-					},
-					modal: { ondismiss: () => reject(new Error('Payment was cancelled')) }
-				});
-				checkout.on('payment.failed', (response) => reject(new Error(response.error?.description || 'Payment failed')));
-				checkout.open();
-			});
+			paymentAttempt = payment;
+			await openPayment(payment);
 		} catch (submitError) {
 			error = submitError instanceof Error ? submitError.message : 'Checkout failed';
 		} finally {
@@ -135,14 +169,14 @@
 	{:else}
 		<h1 class="text-headline-xl font-bold">Checkout</h1>
 		<p class="mb-8 text-on-surface-variant">{event.name}</p>
-		{#if error}<div class="mb-4 rounded-lg border border-error-container bg-error-container/10 p-3 text-error">{error}</div>{/if}
+		{#if error}<div class="mb-4 rounded-lg border border-error-container bg-error-container/10 p-3 text-error">{error}{#if paymentAttempt}<Button class="ml-3" type="button" variant="outline" size="sm" onclick={retryPayment} isLoading={submitting}>Retry payment</Button>{/if}</div>{/if}
 		<form class="space-y-6" onsubmit={handleSubmit}>
 			<Card class="space-y-4 p-6">
 				<h2 class="font-semibold">Tickets</h2>
 				{#each tickets as ticket}
 					<div class="flex items-center justify-between border-b border-outline-variant/40 py-3">
 						<div><p class="font-semibold">{ticket.name}</p><p class="text-on-surface-variant">{ticket.currency} {ticket.price}</p></div>
-						<div class="flex items-center gap-3"><button type="button" onclick={() => quantities[ticket.id] = Math.max(0, (quantities[ticket.id] || 0) - 1)}>-</button><span>{quantities[ticket.id] || 0}</span><button type="button" onclick={() => quantities[ticket.id] = Math.min(ticket.max_per_order, (quantities[ticket.id] || 0) + 1)}>+</button></div>
+						<div class="flex items-center gap-3"><button type="button" aria-label={`Remove ${ticket.name}`} onclick={() => quantities[ticket.id] = (quantities[ticket.id] || 0) <= ticket.min_per_order ? 0 : (quantities[ticket.id] || 0) - 1}>-</button><span>{quantities[ticket.id] || 0}</span><button type="button" aria-label={`Add ${ticket.name}`} onclick={() => quantities[ticket.id] = (quantities[ticket.id] || 0) === 0 ? Math.min(ticket.min_per_order, ticket.quantity - ticket.sold_quantity) : Math.min(ticket.max_per_order, ticket.quantity - ticket.sold_quantity, (quantities[ticket.id] || 0) + 1)}>+</button></div>
 					</div>
 				{/each}
 				<p class="text-right text-headline-md font-bold">Total: {tickets[0]?.currency || 'USD'} {total.toFixed(2)}</p>

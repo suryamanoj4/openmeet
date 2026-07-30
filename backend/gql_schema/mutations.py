@@ -7,6 +7,7 @@ from typing import Optional
 import strawberry
 from graphql import GraphQLError
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from strawberry import Info
 
 from sqlmodel import select
@@ -1115,6 +1116,12 @@ class Mutation:
         except ValueError as exc:
             await session.rollback()
             _raise_validation_error(exc)
+        except SQLAlchemyError as exc:
+            await session.rollback()
+            raise GraphQLError(
+                "Checkout could not be completed; please retry",
+                extensions={"code": "COMMERCE_ERROR", "retryable": True},
+            ) from exc
 
     @strawberry.mutation
     @require_auth
@@ -1261,6 +1268,7 @@ class Mutation:
         amount: float,
         currency: str = "USD",
         payment_method: Optional[str] = None,
+        provider_order_id: Optional[str] = None,
     ) -> Optional[PaymentType]:
         session = get_session(info)
         service = PaymentService(session)
@@ -1268,6 +1276,7 @@ class Mutation:
             payment = await service.create_payment(
                 order_id=order_id,
                 provider=provider,
+                provider_order_id=provider_order_id or provider_payment_id,
                 provider_payment_id=provider_payment_id,
                 amount=amount,
                 currency=currency,
@@ -1319,7 +1328,7 @@ class Mutation:
         service = OrderService(session)
         auth_user = get_auth_user(info)
 
-        order = await service.get_by_id(order_id)
+        order = await service.get_by_id_for_update(order_id)
         if not order:
             raise ValueError("Order not found")
         if order.created_by != auth_user.user_id and not auth_user.is_superuser:
@@ -1330,6 +1339,19 @@ class Mutation:
 
         payment_provider = get_provider(provider)
         amount_subunits = int(order.total_amount * 100)
+        payment_service = PaymentService(session)
+        pending_payment = await payment_service.get_pending_by_order(
+            order.id, provider
+        )
+        if pending_payment:
+            return PaymentOrderPayload(
+                provider_order_id=pending_payment.provider_order_id,
+                provider_key_id=payment_provider.public_key or "",
+                order_id=order.id,
+                order_number=order.order_number,
+                amount=amount_subunits,
+                currency=order.currency,
+            )
 
         provider_order = await payment_provider.create_order(
             amount=amount_subunits,
@@ -1338,11 +1360,10 @@ class Mutation:
             notes={"order_id": str(order.id), "order_number": order.order_number},
         )
 
-        payment_service = PaymentService(session)
         await payment_service.create_payment(
             order_id=order.id,
             provider=provider,
-            provider_payment_id=provider_order["id"],
+            provider_order_id=provider_order["id"],
             amount=float(order.total_amount),
             currency=order.currency,
         )
@@ -1387,7 +1408,7 @@ class Mutation:
                 message="Invalid payment signature",
             )
 
-        payment = await service.get_by_provider_payment_id(provider_order_id)
+        payment = await service.get_by_provider_order_id(provider_order_id)
         if not payment:
             return PaymentVerificationResult(
                 success=False,
@@ -1407,9 +1428,9 @@ class Mutation:
             raise PermissionDenied("You do not own this order")
 
         payment = await service.mark_payment_success(
-            provider_payment_id=provider_order_id,
+            provider_order_id=provider_order_id,
+            provider_payment_id=provider_payment_id,
             extra_data={
-                "provider_payment_id": provider_payment_id,
                 "verified_via": "checkout_callback",
             },
         )

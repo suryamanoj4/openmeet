@@ -14,7 +14,10 @@ class PaymentBase(SQLModel):
 
     order_id: uuid.UUID = Field(foreign_key="orders.id", ondelete="CASCADE")
     provider: str = Field(max_length=50)
-    provider_payment_id: str = Field(unique=True, index=True, max_length=255)
+    provider_order_id: str = Field(unique=True, index=True, max_length=255)
+    provider_payment_id: Optional[str] = Field(
+        default=None, unique=True, index=True, max_length=255
+    )
     amount: float = Field(sa_column=Column("amount", Numeric(10, 2), nullable=False))
     currency: str = Field(max_length=3)
     status: str = Field(max_length=50)
