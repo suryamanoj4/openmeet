@@ -1,9 +1,9 @@
 import { createClient, cacheExchange, fetchExchange } from '@urql/svelte';
-import { PUBLIC_GRAPHQL_URL } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 import { browser } from '$app/environment';
 
 export const graphqlClient = createClient({
-	url: PUBLIC_GRAPHQL_URL || 'http://localhost:8000/graphql',
+	url: env.PUBLIC_GRAPHQL_URL || '/graphql',
 	fetchOptions: (): RequestInit => {
 		const headers: Record<string, string> = {};
 		if (browser) {
