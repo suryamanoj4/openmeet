@@ -269,7 +269,7 @@ class TestOrderService:
         svc = OrderService(db_session)
         num = svc.generate_order_number()
         assert num.startswith("OM-")
-        assert len(num) == 18  # OM-YYYYMMDD-XXXXXX
+        assert len(num) == 22  # OM-YYYYMMDD-XXXXXXXXXX
 
     async def test_get_by_order_number(self, db_session, seeded_event, seeded_ticket):
         svc = OrderService(db_session)
