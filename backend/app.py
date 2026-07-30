@@ -6,9 +6,11 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from strawberry.fastapi import GraphQLRouter
 
 from auth import get_auth_context
+from config import settings
 from database import AsyncSessionLocal, async_engine
 from gql_schema import schema
 from gql_schema.services.payment_service import PaymentService
@@ -43,6 +45,7 @@ async def get_root_value():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    settings.validate_runtime()
     logger.info("OpenMeets API starting")
     await scheduler.start()
     yield
@@ -67,7 +70,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"],
+    allow_origins=settings.parsed_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -82,8 +85,22 @@ async def root():
 
 
 @app.get("/health")
-async def health():
-    return {"status": "healthy"}
+@app.get("/health/live")
+async def liveness():
+    """Report that the API process is running."""
+    return {"status": "alive"}
+
+
+@app.get("/health/ready")
+async def readiness():
+    """Report readiness only when the database accepts a query."""
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+    except Exception as exc:
+        logger.warning("Database readiness check failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Database unavailable") from exc
+    return {"status": "ready"}
 
 
 # ---------- Payment webhook ----------

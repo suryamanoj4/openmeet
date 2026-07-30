@@ -14,12 +14,15 @@ Multi-tenant event management platform enabling organizations to create, manage,
 
 ## Quick Start
 
+Copy `.env.example` to `.env` and set the database values. The checked-in
+defaults are for local development only.
+
 ### Backend
 
 ```bash
 cd backend
 uv sync
-uv run main.py
+DEBUG=true uv run main.py
 ```
 
 ### Frontend
@@ -29,6 +32,31 @@ cd frontend
 npm install
 npm run dev
 ```
+
+## Production
+
+Production runs behind the included nginx reverse proxy:
+
+```bash
+docker compose -f docker-compose.prod.yml up --build
+```
+
+Before starting it:
+
+- set `JWT_SECRET_KEY` to a long, unique secret; the backend refuses to start
+  in non-debug mode with its built-in default
+- set `CORS_ORIGINS` to a comma-separated list of the exact public frontend
+  origins, for example `https://events.example.com`
+- set `FRONTEND_URL` to the public application URL so email links are correct
+- configure the PostgreSQL and payment-provider secrets
+- leave `PUBLIC_GRAPHQL_URL` unset so browsers use nginx at same-origin
+  `/graphql`; set it during the frontend build only when the API has a
+  different public origin
+
+The production frontend uses the committed Node adapter and lockfile. Backend
+and frontend health checks gate nginx startup. The backend exposes process
+liveness at `/health/live` (with `/health` retained as an alias) and verifies
+database readiness at `/health/ready`; Compose gates dependents on readiness.
 
 ## Documentation
 
