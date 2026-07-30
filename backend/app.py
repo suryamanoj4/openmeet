@@ -6,6 +6,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from strawberry.fastapi import GraphQLRouter
 
 from auth import get_auth_context
@@ -84,8 +85,22 @@ async def root():
 
 
 @app.get("/health")
-async def health():
-    return {"status": "healthy"}
+@app.get("/health/live")
+async def liveness():
+    """Report that the API process is running."""
+    return {"status": "alive"}
+
+
+@app.get("/health/ready")
+async def readiness():
+    """Report readiness only when the database accepts a query."""
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+    except Exception as exc:
+        logger.warning("Database readiness check failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Database unavailable") from exc
+    return {"status": "ready"}
 
 
 # ---------- Payment webhook ----------

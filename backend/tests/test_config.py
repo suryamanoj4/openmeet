@@ -21,6 +21,7 @@ def test_cors_origins_are_trimmed_normalized_and_deduplicated():
         "https://events.example.com",
         "http://localhost:5173",
     ]
+    assert settings.parsed_cors_origins is settings.parsed_cors_origins
 
 
 @pytest.mark.parametrize(

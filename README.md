@@ -54,7 +54,9 @@ Before starting it:
   different public origin
 
 The production frontend uses the committed Node adapter and lockfile. Backend
-and frontend health checks gate nginx startup.
+and frontend health checks gate nginx startup. The backend exposes process
+liveness at `/health/live` (with `/health` retained as an alias) and verifies
+database readiness at `/health/ready`; Compose gates dependents on readiness.
 
 ## Documentation
 

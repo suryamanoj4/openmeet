@@ -1,5 +1,6 @@
 """Application configuration."""
 
+from functools import cached_property
 from urllib.parse import urlparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -58,7 +59,7 @@ class Settings(BaseSettings):
     aws_secret_access_key: str | None = None
     aws_region: str | None = None
 
-    @property
+    @cached_property
     def parsed_cors_origins(self) -> list[str]:
         """Return unique, normalized HTTP(S) origins from CORS_ORIGINS."""
         origins: list[str] = []

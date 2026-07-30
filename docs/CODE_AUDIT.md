@@ -26,23 +26,20 @@ checkout/payment, and deployment paths exercised while resolving issues
 
 ## Residual risks and follow-up work
 
-1. `npm audit` currently reports dependency advisories. Upgrade each dependency
-   in a separate compatibility-tested change; do not apply a forced audit fix
-   blindly.
-2. The complete database-backed test suite should be expanded with concurrent
-   checkout and real PostgreSQL transaction tests. Current validation/service
-   tests do not prove lock behavior on every supported database. In the local
-   Python 3.13 sandbox, the suite's SQLite async fixture stalls after 44 tests;
-   changed-path tests pass, and CI runs the full suite with a bounded timeout.
-3. Payment webhooks should persist provider event IDs and reject replayed
-   events at the database boundary, in addition to idempotent service behavior.
-4. Add end-to-end browser coverage for registration, login, create, publish,
-   free checkout, paid checkout, and check-in.
-5. Add rate limiting for authentication, checkout, and public GraphQL traffic.
-6. Add structured error reporting, metrics, backup/restore drills, and explicit
-   liveness versus readiness endpoints before operating at scale.
-7. Review every future Alembic revision before merge for unrelated destructive
-   operations; schema changes should be narrowly scoped and reversible.
+1. [Issue #9](https://github.com/suryamanoj4/openmeet/issues/9) tracks
+   compatibility-tested remediation of frontend dependency advisories.
+2. [Issue #10](https://github.com/suryamanoj4/openmeet/issues/10) tracks real
+   PostgreSQL concurrency coverage for checkout, inventory, and capacity locks.
+3. [Issue #11](https://github.com/suryamanoj4/openmeet/issues/11) tracks
+   database-enforced payment webhook replay protection.
+4. [Issue #12](https://github.com/suryamanoj4/openmeet/issues/12) tracks
+   end-to-end browser coverage for critical user journeys.
+5. [Issue #13](https://github.com/suryamanoj4/openmeet/issues/13) tracks rate
+   limiting for authentication, checkout, webhooks, and public GraphQL traffic.
+6. [Issue #14](https://github.com/suryamanoj4/openmeet/issues/14) tracks
+   production observability and backup/restore validation.
+7. [Issue #15](https://github.com/suryamanoj4/openmeet/issues/15) tracks
+   migration scope, review, and reversibility enforcement.
 
 ## Verification baseline
 
@@ -51,6 +48,7 @@ checkout/payment, and deployment paths exercised while resolving issues
 - `svelte-check` with zero diagnostics
 - SvelteKit production build using adapter-node
 - Docker Compose configuration rendering
+- explicit process-liveness and database-readiness checks
 - whitespace/error checks on every staged patch
 
 This is a targeted engineering audit, not a claim that arbitrary software is
