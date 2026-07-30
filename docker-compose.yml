@@ -1,103 +1,142 @@
+name: openmeet
+
+x-backend-image: &backend-image
+  image: openmeet-backend:local
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: backend-runtime
+
+x-backend-environment: &backend-environment
+  DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql+asyncpg://openmeet:openmeet_password@db:5432/openmeet}
+
 services:
   db:
     image: postgres:16-alpine
-    container_name: openmeet-db
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-openmeet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openmeet_password}
+      POSTGRES_DB: ${POSTGRES_DB:-openmeet}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 5s
     networks:
       - openmeet
 
   db-init:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: openmeet-db-init
-    env_file:
-      - .env
+    <<: *backend-image
+    restart: "no"
     environment:
-      DATABASE_URL: ${DATABASE_URL}
+      <<: *backend-environment
     depends_on:
       db:
         condition: service_healthy
-    command: uv run alembic upgrade head
-    restart: "no"
+    command: ["alembic", "upgrade", "head"]
     networks:
       - openmeet
 
   seed:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: openmeet-seed
-    profiles: ["seed"]
-    env_file:
-      - .env
+    <<: *backend-image
+    profiles: ["demo"]
+    restart: "no"
     environment:
-      DATABASE_URL: ${DATABASE_URL}
+      <<: *backend-environment
     depends_on:
-      db:
-        condition: service_healthy
       db-init:
         condition: service_completed_successfully
-    command: uv run python seed.py
-    restart: "no"
+    command: ["python", "seed.py"]
     networks:
       - openmeet
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: openmeet-backend
+    <<: *backend-image
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-    ports:
-      - "${BACKEND_PORT}:8000"
+      <<: *backend-environment
+      DEBUG: "false"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-openmeet-local-compose-secret-change-before-deployment}
+      CORS_ORIGINS: ${COMPOSE_CORS_ORIGINS:-http://localhost:8080}
+      FRONTEND_URL: ${COMPOSE_FRONTEND_URL:-http://localhost:8080}
     depends_on:
-      db:
-        condition: service_healthy
       db-init:
         condition: service_completed_successfully
-    command: uv run uvicorn app:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ./backend:/app
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - http://127.0.0.1:8000/health/ready
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     networks:
       - openmeet
 
   frontend:
+    image: openmeet-frontend:local
     build:
-      context: ./frontend
+      context: .
       dockerfile: Dockerfile
-    container_name: openmeet-frontend
+      target: frontend-runtime
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
-      PUBLIC_GRAPHQL_URL: ${PUBLIC_GRAPHQL_URL}
-    ports:
-      - "${FRONTEND_PORT}:5173"
+      HOST: 0.0.0.0
+      PORT: "3000"
+      ORIGIN: ${COMPOSE_FRONTEND_URL:-http://localhost:8080}
+      PUBLIC_GRAPHQL_URL: ""
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --spider
+        - http://127.0.0.1:3000/
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - openmeet
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8080}:80"
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/static:/app/static
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --spider
+        - http://127.0.0.1/health/live
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     networks:
       - openmeet
 
