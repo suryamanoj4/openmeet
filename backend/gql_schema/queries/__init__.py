@@ -38,6 +38,7 @@ from gql_schema.services import (
     EventPageService,
 )
 from models import AuditLog, EmailLog, Invitation, Notification
+from rbac import PermissionDenied
 from gql_schema.services.mapping import (
     user_to_type,
     organization_to_type,
@@ -69,6 +70,40 @@ def get_auth_user(info: Info):
     return None
 
 
+def require_authenticated(info: Info):
+    auth_user = get_auth_user(info)
+    if not auth_user:
+        raise PermissionDenied("Authentication required")
+    return auth_user
+
+
+def require_platform_admin(info: Info):
+    auth_user = require_authenticated(info)
+    if not (auth_user.is_superuser or auth_user.role == "admin"):
+        raise PermissionDenied("Platform administrator access required")
+    return auth_user
+
+
+async def require_event_organizer(info: Info, event_id: UUID):
+    auth_user = require_authenticated(info)
+    if auth_user.is_superuser or auth_user.role == "admin":
+        return auth_user
+    await EventService(get_session(info)).ensure_organizer(event_id, auth_user.user_id)
+    return auth_user
+
+
+async def require_organization_admin(info: Info, organization_id: UUID):
+    auth_user = require_authenticated(info)
+    if auth_user.is_superuser or auth_user.role == "admin":
+        return auth_user
+    member = await OrganizationService(get_session(info)).get_member(
+        organization_id, auth_user.user_id
+    )
+    if not member or member.role != "admin":
+        raise PermissionDenied("Organization administrator access required")
+    return auth_user
+
+
 @strawberry.type
 class Query:
     @strawberry.field
@@ -93,6 +128,7 @@ class Query:
         skip: int = 0,
         limit: int = 100,
     ) -> List[UserType]:
+        require_platform_admin(info)
         session = get_session(info)
         service = UserService(session)
         users = await service.get_all(skip=skip, limit=limit)
@@ -104,6 +140,7 @@ class Query:
         info: Info,
         id: UUID,
     ) -> Optional[UserType]:
+        require_platform_admin(info)
         session = get_session(info)
         service = UserService(session)
         user = await service.get_by_id(id)
@@ -158,6 +195,7 @@ class Query:
         skip: int = 0,
         limit: int = 100,
     ) -> List[MemberType]:
+        await require_organization_admin(info, organization_id)
         session = get_session(info)
         service = OrganizationService(session)
         members = await service.get_members(
@@ -173,6 +211,7 @@ class Query:
         skip: int = 0,
         limit: int = 100,
     ) -> List[FollowerType]:
+        await require_organization_admin(info, organization_id)
         session = get_session(info)
         service = OrganizationService(session)
         followers = await service.get_followers(
@@ -190,9 +229,20 @@ class Query:
     ) -> List[EventType]:
         session = get_session(info)
         service = EventService(session)
-        events = await service.get_all(
-            skip=skip, limit=limit, organization_id=organization_id
-        )
+        auth_user = require_authenticated(info)
+        if auth_user.is_superuser or auth_user.role == "admin":
+            events = await service.get_all(
+                skip=skip, limit=limit, organization_id=organization_id
+            )
+        else:
+            events = await service.get_for_user(
+                auth_user.user_id, skip=skip, limit=limit
+            )
+            if organization_id:
+                events = [
+                    event for event in events
+                    if event.organization_id == organization_id
+                ]
         return [EventType(**event_to_type(e)) for e in events]
 
     @strawberry.field
@@ -249,6 +299,7 @@ class Query:
         info: Info,
         id: UUID,
     ) -> Optional[EventType]:
+        await require_event_organizer(info, id)
         session = get_session(info)
         service = EventService(session)
         event = await service.get_by_id(id)
@@ -266,7 +317,13 @@ class Query:
         session = get_session(info)
         service = EventService(session)
         event = await service.get_by_slug(slug)
-        if not event or event.organization_id != organization_id:
+        if (
+            not event
+            or event.organization_id != organization_id
+            or event.status != "published"
+            or event.visibility not in ("public", "unlisted")
+            or not event.is_active
+        ):
             return None
         return EventType(**event_to_type(event))
 
@@ -280,6 +337,16 @@ class Query:
         limit: int = 100,
     ) -> List[TicketType]:
         session = get_session(info)
+        event = await EventService(session).get_by_id(event_id)
+        if not event:
+            return []
+        is_public = (
+            event.status == "published"
+            and event.visibility in ("public", "unlisted")
+            and event.is_active
+        )
+        if not is_public:
+            await require_event_organizer(info, event_id)
         service = TicketService(session)
         tickets = await service.get_by_event(
             event_id, active_only=active_only, skip=skip, limit=limit
@@ -295,6 +362,14 @@ class Query:
         limit: int = 100,
     ) -> List[TicketType]:
         session = get_session(info)
+        event = await EventService(session).get_by_id(event_id)
+        if (
+            not event
+            or event.status != "published"
+            or event.visibility not in ("public", "unlisted")
+            or not event.is_active
+        ):
+            return []
         service = TicketService(session)
         tickets = await service.get_available_tickets(
             event_id, skip=skip, limit=limit
@@ -310,6 +385,10 @@ class Query:
         limit: int = 100,
     ) -> List[OrderType]:
         session = get_session(info)
+        if event_id:
+            await require_event_organizer(info, event_id)
+        else:
+            require_platform_admin(info)
         service = OrderService(session)
         orders = await service.get_all(
             skip=skip, limit=limit, event_id=event_id
@@ -327,6 +406,7 @@ class Query:
         order = await service.get_by_id(id)
         if not order:
             return None
+        await require_event_organizer(info, order.event_id)
         return OrderType(**order_to_type(order))
 
     @strawberry.field
@@ -340,6 +420,7 @@ class Query:
         order = await service.get_by_order_number(order_number)
         if not order:
             return None
+        await require_event_organizer(info, order.event_id)
         return OrderType(**order_to_type(order))
 
     @strawberry.field
@@ -352,6 +433,13 @@ class Query:
         limit: int = 100,
     ) -> List[AttendeeType]:
         session = get_session(info)
+        if ticket_id:
+            ticket = await TicketService(session).get_by_id(ticket_id)
+            if not ticket:
+                return []
+            await require_event_organizer(info, ticket.event_id)
+        else:
+            require_platform_admin(info)
         service = AttendeeService(session)
         attendees = await service.get_all(
             skip=skip, limit=limit, ticket_id=ticket_id
@@ -369,6 +457,10 @@ class Query:
         attendee = await service.get_by_id(id)
         if not attendee:
             return None
+        ticket = await TicketService(session).get_by_id(attendee.ticket_id)
+        if not ticket:
+            return None
+        await require_event_organizer(info, ticket.event_id)
         return AttendeeType(**attendee_to_type(attendee))
 
     @strawberry.field
@@ -380,6 +472,7 @@ class Query:
         skip: int = 0,
         limit: int = 100,
     ) -> List[AttendeeType]:
+        await require_event_organizer(info, event_id)
         session = get_session(info)
         service = AttendeeService(session)
         attendees = await service.search(event_id, query, skip=skip, limit=limit)
@@ -393,6 +486,7 @@ class Query:
         skip: int = 0,
         limit: int = 50,
     ) -> List[PaymentType]:
+        require_platform_admin(info)
         session = get_session(info)
         service = PaymentService(session)
         if order_id:
@@ -408,6 +502,7 @@ class Query:
         id: Optional[UUID] = None,
         provider_payment_id: Optional[str] = None,
     ) -> Optional[PaymentType]:
+        require_platform_admin(info)
         session = get_session(info)
         service = PaymentService(session)
         if id:
@@ -429,6 +524,7 @@ class Query:
         skip: int = 0,
         limit: int = 100,
     ) -> List[AuditLogType]:
+        require_platform_admin(info)
         session = get_session(info)
         from sqlmodel import select as _select
         query = _select(AuditLog)
@@ -449,6 +545,7 @@ class Query:
         skip: int = 0,
         limit: int = 100,
     ) -> List[EmailLogType]:
+        require_platform_admin(info)
         session = get_session(info)
         from sqlmodel import select as _select
         query = _select(EmailLog)
@@ -468,9 +565,7 @@ class Query:
         skip: int = 0,
         limit: int = 50,
     ) -> List[NotificationType]:
-        auth_user = get_auth_user(info)
-        if not auth_user:
-            return []
+        auth_user = require_authenticated(info)
         session = get_session(info)
         service = NotificationService(session)
         notifs = await service.get_for_user(auth_user.user_id, unread_only=unread_only, skip=skip, limit=limit)
@@ -481,9 +576,7 @@ class Query:
         self,
         info: Info,
     ) -> int:
-        auth_user = get_auth_user(info)
-        if not auth_user:
-            return 0
+        auth_user = require_authenticated(info)
         session = get_session(info)
         service = NotificationService(session)
         return await service.get_unread_count(auth_user.user_id)
@@ -497,6 +590,7 @@ class Query:
         skip: int = 0,
         limit: int = 100,
     ) -> List[InvitationType]:
+        await require_organization_admin(info, organization_id)
         session = get_session(info)
         from sqlmodel import select as _select
         query = _select(Invitation).where(Invitation.organization_id == organization_id)
@@ -526,6 +620,7 @@ class Query:
         info: Info,
         event_id: UUID,
     ) -> Optional[EventPageType]:
+        await require_event_organizer(info, event_id)
         session = get_session(info)
         service = EventPageService(session)
         page = await service.get_by_event(event_id)

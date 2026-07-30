@@ -100,6 +100,25 @@ class EventService(BaseService[Event]):
         result = await self.session.exec(query.offset(skip).limit(limit))
         return list(result.all())
 
+    async def get_for_user(
+        self,
+        user_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[Event]:
+        result = await self.session.exec(
+            select(Event)
+            .join(EventStaff, EventStaff.event_id == Event.id)
+            .where(
+                EventStaff.user_id == user_id,
+                EventStaff.is_active == True,
+                Event.is_active == True,
+            )
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(result.all())
+
     async def user_is_organizer(self, event_id: UUID, user_id: UUID) -> bool:
         return await check_event_role(self.session, event_id, user_id, "organizer")
 

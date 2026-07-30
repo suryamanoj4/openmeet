@@ -10,17 +10,18 @@ interface TicketsResponse { event_tickets: { id: string; name: string; price: nu
 
 export async function listEvents(limit = 50, skip = 0): Promise<Event[]> {
 	const r = await graphqlClient.query<EventsResponse>(EVENTS, { limit, skip }).toPromise();
-	return r.data?.events ?? [];
+	return requireMutationResult(r, 'events', 'Failed to load events');
 }
 
 export async function getEvent(id: string): Promise<Event | null> {
 	const r = await graphqlClient.query<EventResponse>(EVENT, { id }).toPromise();
+	if (r.error) throw new Error(r.error.message);
 	return r.data?.event ?? null;
 }
 
 export async function getEventTickets(eventId: string): Promise<TicketsResponse['event_tickets']> {
 	const r = await graphqlClient.query<TicketsResponse>(EVENT_TICKETS, { event_id: eventId }).toPromise();
-	return r.data?.event_tickets ?? [];
+	return requireMutationResult(r, 'event_tickets', 'Failed to load tickets');
 }
 
 export async function createEvent(input: CreateEventInput): Promise<{ id: string; name: string }> {
@@ -35,10 +36,10 @@ export async function updateEvent(id: string, input: UpdateEventInput): Promise<
 
 export async function deleteEvent(id: string): Promise<boolean> {
 	const r = await graphqlClient.mutation<{ delete_event: boolean }>(DELETE_EVENT, { id }).toPromise();
-	return r.data?.delete_event ?? false;
+	return requireMutationResult(r, 'delete_event', 'Failed to delete event');
 }
 
 export async function addOrganizer(eventId: string, userId: string): Promise<boolean> {
 	const r = await graphqlClient.mutation<{ add_event_organizer: { id: string } }>(ADD_EVENT_ORGANIZER, { event_id: eventId, user_id: userId }).toPromise();
-	return !!r.data?.add_event_organizer;
+	return !!requireMutationResult(r, 'add_event_organizer', 'Failed to add organizer');
 }

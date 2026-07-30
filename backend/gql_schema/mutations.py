@@ -1105,6 +1105,15 @@ class Mutation:
         auth_user = get_auth_user(info)
         service = AttendeeService(session)
         try:
+            existing = await service.get_by_id(attendee_id)
+            if not existing:
+                raise ValueError("Attendee not found")
+            ticket = await TicketService(session).get_by_id(existing.ticket_id)
+            if not ticket:
+                raise ValueError("Ticket not found")
+            await EventService(session).ensure_organizer(
+                ticket.event_id, auth_user.user_id
+            )
             attendee = await service.check_in(attendee_id, auth_user.user_id)
             await session.commit()
             return AttendeeType(**attendee_to_type(attendee))
@@ -1120,8 +1129,18 @@ class Mutation:
         attendee_id: uuid.UUID,
     ) -> Optional[AttendeeType]:
         session = get_session(info)
+        auth_user = get_auth_user(info)
         service = AttendeeService(session)
         try:
+            existing = await service.get_by_id(attendee_id)
+            if not existing:
+                raise ValueError("Attendee not found")
+            ticket = await TicketService(session).get_by_id(existing.ticket_id)
+            if not ticket:
+                raise ValueError("Ticket not found")
+            await EventService(session).ensure_organizer(
+                ticket.event_id, auth_user.user_id
+            )
             attendee = await service.undo_check_in(attendee_id)
             await session.commit()
             return AttendeeType(**attendee_to_type(attendee))
@@ -1138,8 +1157,18 @@ class Mutation:
         notes: str,
     ) -> Optional[AttendeeType]:
         session = get_session(info)
+        auth_user = get_auth_user(info)
         service = AttendeeService(session)
         try:
+            existing = await service.get_by_id(attendee_id)
+            if not existing:
+                raise ValueError("Attendee not found")
+            ticket = await TicketService(session).get_by_id(existing.ticket_id)
+            if not ticket:
+                raise ValueError("Ticket not found")
+            await EventService(session).ensure_organizer(
+                ticket.event_id, auth_user.user_id
+            )
             attendee = await service.update_notes(attendee_id, notes)
             await session.commit()
             return AttendeeType(**attendee_to_type(attendee))
@@ -1153,6 +1182,7 @@ class Mutation:
 
     @strawberry.mutation
     @require_auth
+    @require_role("admin")
     async def create_payment(
         self,
         info: Info,
@@ -1209,6 +1239,7 @@ class Mutation:
     # ================================================================
 
     @strawberry.mutation
+    @require_auth
     async def create_payment_order(
         self,
         info: Info,
@@ -1255,6 +1286,7 @@ class Mutation:
         )
 
     @strawberry.mutation
+    @require_auth
     async def verify_payment(
         self,
         info: Info,
