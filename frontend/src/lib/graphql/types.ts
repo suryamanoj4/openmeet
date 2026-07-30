@@ -39,7 +39,7 @@ export interface Member {
 
 export interface Event {
 	id: string;
-	organization_id: string;
+	organization_id: string | null;
 	name: string;
 	slug: string;
 	description?: string;

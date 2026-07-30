@@ -57,10 +57,11 @@
 
 <div class="w-full space-y-1.5" bind:this={containerEl}>
 	{#if label}
-		<label class="text-label-md text-fg">{label}</label>
+		<span class="block text-label-md text-fg">{label}</span>
 	{/if}
 	<button
 		type="button"
+		aria-label={label || placeholder}
 		class={cn(
 			'flex h-10 w-full items-center justify-between rounded-lg border bg-surface-container-lowest px-3 py-2 text-body-md transition-all duration-150',
 			error ? 'border-error focus-visible:ring-error' : 'border-input focus-visible:ring-ring',

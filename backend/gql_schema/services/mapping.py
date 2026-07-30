@@ -49,7 +49,7 @@ def organization_to_type(org) -> dict:
         "website_url": org.website_url,
         "social_links": org.social_links,
         "settings": org.settings,
-        "is_verified": org.is_verified,
+        "is_verified": getattr(org, "is_verified", False),
         "created_at": org.created_at,
         "updated_at": org.updated_at,
     }

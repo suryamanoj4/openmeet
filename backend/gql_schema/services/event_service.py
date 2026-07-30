@@ -21,8 +21,54 @@ class EventService(BaseService[Event]):
         result = await self.session.exec(select(Event).where(Event.slug == slug))
         return result.first()
 
+    async def get_public_by_id_and_slug(
+        self, event_id: UUID, slug: str
+    ) -> Optional[Event]:
+        result = await self.session.exec(
+            select(Event).where(
+                Event.id == event_id,
+                Event.slug == slug,
+                Event.status == "published",
+                Event.visibility.in_(("public", "unlisted")),
+                Event.is_active == True,
+            )
+        )
+        return result.first()
+
+    async def get_public_by_slug(self, slug: str) -> List[Event]:
+        result = await self.session.exec(
+            select(Event).where(
+                Event.slug == slug,
+                Event.status == "published",
+                Event.visibility.in_(("public", "unlisted")),
+                Event.is_active == True,
+            )
+        )
+        return list(result.all())
+
+    async def get_public(self, skip: int = 0, limit: int = 100) -> List[Event]:
+        result = await self.session.exec(
+            select(Event)
+            .where(
+                Event.status == "published",
+                Event.visibility == "public",
+                Event.is_active == True,
+            )
+            .order_by(Event.start_date)
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(result.all())
+
     async def get_by_id(self, id: UUID) -> Optional[Event]:
         result = await self.session.exec(select(Event).where(Event.id == id))
+        return result.first()
+
+    async def get_by_id_for_update(self, id: UUID) -> Optional[Event]:
+        """Lock an event while schedule or publication state is changed."""
+        result = await self.session.exec(
+            select(Event).where(Event.id == id).with_for_update()
+        )
         return result.first()
 
     async def get_tickets(self, event_id: UUID) -> List[Ticket]:

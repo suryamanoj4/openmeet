@@ -4,8 +4,9 @@
 	import { page } from '$app/stores';
 	import { getEvent, getEventTickets } from '$lib/services/events';
 	import { CREATE_TICKET, DELETE_TICKET } from '$lib/graphql/queries/tickets';
-	import { EVENT_PAGE, SAVE_EVENT_PAGE, PUBLISH_EVENT_PAGE, UNPUBLISH_EVENT_PAGE } from '$lib/graphql/queries/events';
+	import { EVENT_PAGE, SAVE_EVENT_PAGE, PUBLISH_EVENT, UNPUBLISH_EVENT } from '$lib/graphql/queries/events';
 	import { graphqlClient } from '$lib/graphql/client';
+	import { requireMutationResult } from '$lib/graphql/result';
 	import Button from '$lib/components/ui/button.svelte';
 	import Input from '$lib/components/ui/input.svelte';
 	import Label from '$lib/components/ui/label.svelte';
@@ -57,6 +58,8 @@
 	let selectedBlockIdx = $state<number | null>(null);
 	let dragIdx = $state<number | null>(null);
 	let previewModal = $state(false);
+	let pageError = $state<string | null>(null);
+	let publicPath = $state<string | null>(null);
 
 	// Ticket form
 	let newTicketName = $state(''); let newTicketPrice = $state(0); let newTicketQty = $state(100);
@@ -83,6 +86,7 @@
 					}));
 				}
 				isPublished = pageResult.data.event_page.is_published;
+				if (isPublished) publicPath = `/event/${event.id}/${event.slug}`;
 			}
 		}
 		loading = false;
@@ -154,10 +158,10 @@
 		if ('speakers' in block.props) block.props.speakers = items.filter(i => i.id !== itemId);
 		else block.props.items = items.filter(i => i.id !== itemId);
 	}
-	function updateSpeakerField(block: Block, itemId: string, field: string, value: string) {
+	function updateSpeakerField(block: Block, itemId: string, field: keyof SpeakerItem, value: string) {
 		const items = (block.props.speakers as SpeakerItem[] || block.props.items as SpeakerItem[]) || [];
 		const item = items.find(i => i.id === itemId);
-		if (item) (item as Record<string, string>)[field] = value;
+		if (item) item[field] = value;
 	}
 
 	function addFAQItem(block: Block) {
@@ -174,35 +178,50 @@
 		if (item) item[field] = value;
 	}
 
-	function updateScheduleField(block: Block, itemId: string, field: string, value: string) {
+	function updateScheduleField(block: Block, itemId: string, field: keyof ScheduleItem, value: string) {
 		const items = (block.props.items as ScheduleItem[]) || [];
 		const item = items.find(i => i.id === itemId);
-		if (item) (item as Record<string, string>)[field] = value;
+		if (item) item[field] = value;
 	}
 
 	// ---- Save / Publish ----
 	async function savePage() {
-		saving = true; saved = false;
+		saving = true; saved = false; pageError = null;
 		try {
 			const blockInputs = blocks.map(b => ({ id: b.id, type: b.type, props: b.props, visible: b.visible }));
-			await graphqlClient.mutation(SAVE_EVENT_PAGE, { event_id: $page.params.id as string, input: { blocks: blockInputs, isPublished: isPublished } }).toPromise();
+			const result = await graphqlClient.mutation<{ save_event_page: { id: string } }>(
+				SAVE_EVENT_PAGE,
+				{ event_id: $page.params.id as string, input: { blocks: blockInputs } }
+			).toPromise();
+			requireMutationResult(result, 'save_event_page', 'Failed to save page');
 			saved = true;
 			setTimeout(() => saved = false, 2500);
-		} catch (e) { console.error(e); }
+		} catch (e) { pageError = e instanceof Error ? e.message : 'Failed to save page'; }
 		saving = false;
 	}
 
 	async function togglePublish() {
-		saving = true;
+		saving = true; pageError = null;
 		try {
 			if (isPublished) {
-				await graphqlClient.mutation(UNPUBLISH_EVENT_PAGE, { event_id: $page.params.id as string }).toPromise();
+				const result = await graphqlClient.mutation<{ unpublish_event: { public_path: string } }>(
+					UNPUBLISH_EVENT,
+					{ event_id: $page.params.id as string }
+				).toPromise();
+				requireMutationResult(result, 'unpublish_event', 'Failed to unpublish event');
 				isPublished = false;
+				publicPath = null;
 			} else {
-				await graphqlClient.mutation(PUBLISH_EVENT_PAGE, { event_id: $page.params.id as string }).toPromise();
+				const blockInputs = blocks.map(b => ({ id: b.id, type: b.type, props: b.props, visible: b.visible }));
+				const result = await graphqlClient.mutation<{ publish_event: { public_path: string } }>(
+					PUBLISH_EVENT,
+					{ event_id: $page.params.id as string, page: { blocks: blockInputs } }
+				).toPromise();
+				const published = requireMutationResult(result, 'publish_event', 'Failed to publish event');
 				isPublished = true;
+				publicPath = published.public_path;
 			}
-		} catch (e) { console.error(e); }
+		} catch (e) { pageError = e instanceof Error ? e.message : 'Failed to update publication'; }
 		saving = false;
 	}
 
@@ -260,6 +279,18 @@
 				</Button>
 			</div>
 		</div>
+		{#if pageError}
+			<div class="mb-5 rounded-lg border border-error-container/50 bg-error-container/10 p-3 text-body-md text-error">{pageError}</div>
+		{/if}
+		{#if isPublished && publicPath}
+			<div class="mb-5 flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary-fixed/20 p-3">
+				<p class="truncate text-body-md text-fg">Published at <span class="font-semibold">{publicPath}</span></p>
+				<div class="flex shrink-0 gap-2">
+					<Button variant="outline" size="sm" onclick={() => navigator.clipboard.writeText(`${location.origin}${publicPath}`)}>Copy Link</Button>
+					<Button variant="primary" size="sm" onclick={() => goto(publicPath!)}>Open Page</Button>
+				</div>
+			</div>
+		{/if}
 
 		<!-- Tabs -->
 		<div class="flex gap-2 mb-6">
@@ -498,7 +529,7 @@
 								</div>
 							{:else if block.type === 'text'}
 								<div class="py-4 px-1">
-									<div class="prose prose-lg max-w-none text-fg">{@html (block.props.content as string)?.replace(/\n/g, '<br>')}</div>
+									<p class="prose prose-lg max-w-none whitespace-pre-line text-fg">{block.props.content as string}</p>
 								</div>
 							{:else if block.type === 'image'}
 								{#if block.props.url}
@@ -541,9 +572,6 @@
 							{:else if block.type === 'venue'}
 								<div class="py-6 px-1">
 									<h2 class="text-headline-lg font-bold text-fg mb-4">{block.props.title as string}</h2>
-									{#if block.props.mapEmbed}
-										<div class="rounded-xl overflow-hidden mb-4">{@html block.props.mapEmbed as string}</div>
-									{/if}
 									<p class="text-body-md text-fg">{block.props.address as string}</p>
 									<p class="text-body-md text-on-surface-variant">{block.props.city as string}</p>
 								</div>
@@ -575,9 +603,7 @@
 										<h2 class="text-headline-lg font-bold text-fg mb-4">{block.props.title as string}</h2>
 									{/if}
 									<div class="rounded-xl overflow-hidden aspect-video bg-surface-container">
-										{#if block.props.embedCode}
-											{@html block.props.embedCode as string}
-										{:else if block.props.url}
+										{#if block.props.url}
 											<div class="flex items-center justify-center h-full text-on-surface-variant/40">▶ Video URL: {block.props.url as string}</div>
 										{:else}
 											<div class="flex items-center justify-center h-full text-on-surface-variant/40">No video set</div>
@@ -585,7 +611,7 @@
 									</div>
 								</div>
 							{:else if block.type === 'html'}
-								<div class="py-4">{@html block.props.code as string}</div>
+								<pre class="overflow-auto whitespace-pre-wrap rounded-lg bg-surface-container p-4 text-label-sm">{block.props.code as string}</pre>
 							{:else if block.type === 'divider'}
 								<hr class="border-outline-variant/40 my-2" />
 							{/if}

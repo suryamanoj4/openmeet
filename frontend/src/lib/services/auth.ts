@@ -163,7 +163,7 @@ export async function confirmPasswordReset(token: string, newPassword: string): 
 	const result = await graphqlClient
 		.mutation<{ confirm_password_reset: boolean }, { input: { token: string; newPassword: string } }>(
 			CONFIRM_PASSWORD_RESET,
-			{ input: { token, new_password: newPassword as never } }
+			{ input: { token, newPassword } }
 		)
 		.toPromise();
 	return result.data?.confirm_password_reset ?? false;

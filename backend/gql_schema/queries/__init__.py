@@ -24,6 +24,7 @@ from gql_schema.types import (
     InvitationType,
     NotificationType,
     EventPageType,
+    PublicEventPayload,
 )
 from gql_schema.services import (
     UserService,
@@ -193,6 +194,54 @@ class Query:
             skip=skip, limit=limit, organization_id=organization_id
         )
         return [EventType(**event_to_type(e)) for e in events]
+
+    @strawberry.field
+    async def public_events(
+        self,
+        info: Info,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[EventType]:
+        session = get_session(info)
+        service = EventService(session)
+        events = await service.get_public(skip=skip, limit=limit)
+        return [EventType(**event_to_type(event)) for event in events]
+
+    @strawberry.field
+    async def public_event(
+        self,
+        info: Info,
+        id: UUID,
+        slug: str,
+    ) -> Optional[PublicEventPayload]:
+        session = get_session(info)
+        event_service = EventService(session)
+        event = await event_service.get_public_by_id_and_slug(id, slug)
+        if not event:
+            return None
+
+        page = await EventPageService(session).get_by_event(event.id)
+        if not page or not page.is_published:
+            return None
+
+        tickets = await TicketService(session).get_available_tickets(event.id)
+        return PublicEventPayload(
+            event=EventType(**event_to_type(event)),
+            page=EventPageType(**event_page_to_type(page)),
+            tickets=[TicketType(**ticket_to_type(ticket)) for ticket in tickets],
+        )
+
+    @strawberry.field
+    async def resolve_public_event_slug(
+        self,
+        info: Info,
+        slug: str,
+    ) -> Optional[EventType]:
+        session = get_session(info)
+        matches = await EventService(session).get_public_by_slug(slug)
+        if len(matches) != 1:
+            return None
+        return EventType(**event_to_type(matches[0]))
 
     @strawberry.field
     async def event(

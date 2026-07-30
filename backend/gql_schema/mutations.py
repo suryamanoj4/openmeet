@@ -1,10 +1,12 @@
 """GraphQL Mutation definitions."""
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import strawberry
+from graphql import GraphQLError
+from pydantic import ValidationError
 from strawberry import Info
 
 from sqlmodel import select
@@ -28,6 +30,7 @@ from config import settings
 from email_service import send_password_reset_email, send_email_verification_email, send_invitation_email
 from rbac import require_auth, require_role, PermissionDenied
 from payment_provider import get_provider
+from gql_schema.datetime_utils import to_naive_utc
 from gql_schema.types import (
     UserType,
     OrganizationType,
@@ -42,6 +45,7 @@ from gql_schema.types import (
     InvitationType,
     NotificationType,
     EventPageType,
+    PublishedEventPayload,
 )
 from gql_schema.types.auth import AuthPayload, RefreshPayload
 from gql_schema.types.payment_provider import PaymentOrderPayload, PaymentVerificationResult
@@ -91,6 +95,12 @@ from gql_schema.services.mapping import (
     notification_to_type,
     event_page_to_type,
 )
+from gql_schema.validation import (
+    EventScheduleSchema,
+    NewEventScheduleSchema,
+    PublishableEventScheduleSchema,
+    validate_publishable_blocks,
+)
 from models import User, Organization, Event, Ticket, EventStaff, AuditLog, EmailLog, Invitation, Notification, EventPage
 
 
@@ -103,6 +113,57 @@ def get_auth_user(info: Info):
     if isinstance(ctx, dict) and ctx.get("current_user"):
         return ctx["current_user"]
     return None
+
+
+def _schedule_values(event: Event, overrides: Optional[dict] = None) -> dict:
+    values = {
+        "start_date": event.start_date,
+        "end_date": event.end_date,
+        "timezone_name": event.timezone,
+        "registration_start": event.registration_start,
+        "registration_end": event.registration_end,
+    }
+    values.update(overrides or {})
+    if "timezone" in values:
+        values["timezone_name"] = values.pop("timezone")
+    return values
+
+
+def _raise_validation_error(exc: ValidationError | ValueError) -> None:
+    field = None
+    message = str(exc)
+    errors = []
+    if isinstance(exc, ValidationError) and exc.errors():
+        for error in exc.errors():
+            error_field = (
+                ".".join(str(part) for part in error.get("loc", ())) or None
+            )
+            error_message = error.get("msg", str(error)).removeprefix(
+                "Value error, "
+            )
+            errors.append({"field": error_field, "message": error_message})
+        field = errors[0]["field"]
+        message = "; ".join(error["message"] for error in errors)
+    raise GraphQLError(
+        message,
+        extensions={
+            "code": "VALIDATION_ERROR",
+            "field": field,
+            "errors": errors or [{"field": field, "message": message}],
+        },
+    ) from exc
+
+
+def _page_blocks(input: UpdateEventPageInput) -> list[dict]:
+    return [
+        {
+            "id": block.id,
+            "type": block.type,
+            "visible": block.visible,
+            "props": block.props or {},
+        }
+        for block in input.blocks
+    ]
 
 
 @strawberry.type
@@ -647,6 +708,17 @@ class Mutation:
         auth_user = get_auth_user(info)
         event_service = EventService(session)
 
+        try:
+            NewEventScheduleSchema(
+                start_date=input.start_date,
+                end_date=input.end_date,
+                timezone_name=input.timezone,
+                registration_start=input.registration_start,
+                registration_end=input.registration_end,
+            )
+        except ValidationError as exc:
+            _raise_validation_error(exc)
+
         if input.organization_id:
             org_service = OrganizationService(session)
             member = await org_service.get_member(input.organization_id, auth_user.user_id)
@@ -660,10 +732,10 @@ class Mutation:
             slug=input.slug,
             description=input.description,
             event_type=input.event_type,
-            status=input.status,
+            status="draft",
             visibility=input.visibility,
-            start_date=input.start_date,
-            end_date=input.end_date,
+            start_date=to_naive_utc(input.start_date),
+            end_date=to_naive_utc(input.end_date),
             timezone=input.timezone,
             venue_name=input.venue_name,
             venue_address=input.venue_address,
@@ -674,8 +746,8 @@ class Mutation:
             max_attendees=input.max_attendees,
             min_tickets_per_order=input.min_tickets_per_order,
             max_tickets_per_order=input.max_tickets_per_order,
-            registration_start=input.registration_start,
-            registration_end=input.registration_end,
+            registration_start=to_naive_utc(input.registration_start),
+            registration_end=to_naive_utc(input.registration_end),
             cover_image_url=input.cover_image_url,
             banner_image_url=input.banner_image_url,
             settings=input.settings,
@@ -705,13 +777,55 @@ class Mutation:
         auth_user = get_auth_user(info)
         service = EventService(session)
 
-        event = await service.get_by_id(id)
+        event = await service.get_by_id_for_update(id)
         if not event:
             return None
 
         await service.ensure_organizer(id, auth_user.user_id)
 
         update_data = {k: v for k, v in input.__dict__.items() if v is not None}
+        schedule_overrides = {
+            key: value
+            for key, value in update_data.items()
+            if key
+            in {
+                "start_date",
+                "end_date",
+                "timezone",
+                "registration_start",
+                "registration_end",
+            }
+        }
+        try:
+            if event.status == "published":
+                if (
+                    event.start_date <= datetime.now(timezone.utc).replace(tzinfo=None)
+                    and "start_date" in schedule_overrides
+                    and to_naive_utc(schedule_overrides["start_date"]) != event.start_date
+                ):
+                    raise GraphQLError(
+                        "start date cannot be changed after a published event has started",
+                        extensions={
+                            "code": "VALIDATION_ERROR",
+                            "field": "start_date",
+                        },
+                    )
+                PublishableEventScheduleSchema(
+                    **_schedule_values(event, schedule_overrides)
+                )
+            else:
+                NewEventScheduleSchema(**_schedule_values(event, schedule_overrides))
+        except ValidationError as exc:
+            _raise_validation_error(exc)
+
+        for field in (
+            "start_date",
+            "end_date",
+            "registration_start",
+            "registration_end",
+        ):
+            if field in update_data:
+                update_data[field] = to_naive_utc(update_data[field])
         event = await service.update(event, **update_data)
         await session.commit()
         return EventType(**event_to_type(event))
@@ -1256,56 +1370,70 @@ class Mutation:
 
         page_service = EventPageService(session)
 
-        blocks = []
-        for b in input.blocks:
-            block_data = {
-                "id": b.id,
-                "type": b.type,
-                "visible": b.visible,
-            }
-            if b.props is not None:
-                block_data["props"] = b.props
-            else:
-                block_data["props"] = {}
-            blocks.append(block_data)
-
-        page = await page_service.update_blocks(event_id, blocks)
-        if input.is_published:
-            page = await page_service.publish(event_id)
+        page = await page_service.update_blocks(event_id, _page_blocks(input))
 
         await session.commit()
         return EventPageType(**event_page_to_type(page))
 
     @strawberry.mutation
     @require_auth
-    async def publish_event_page(
+    async def publish_event(
         self,
         info: Info,
         event_id: uuid.UUID,
-    ) -> EventPageType:
+        page: UpdateEventPageInput,
+    ) -> PublishedEventPayload:
         session = get_session(info)
         auth_user = get_auth_user(info)
         event_service = EventService(session)
         await event_service.ensure_organizer(event_id, auth_user.user_id)
 
+        event = await event_service.get_by_id_for_update(event_id)
+        if not event:
+            raise GraphQLError("Event not found")
+
+        blocks = _page_blocks(page)
+        try:
+            PublishableEventScheduleSchema(**_schedule_values(event))
+            validate_publishable_blocks(blocks)
+        except (ValidationError, ValueError) as exc:
+            _raise_validation_error(exc)
+
         page_service = EventPageService(session)
-        page = await page_service.publish(event_id)
+        event_page = await page_service.update_blocks(event_id, blocks)
+        event_page = await page_service.publish(event_id)
+        event.status = "published"
+        event.updated_at = datetime.utcnow()
         await session.commit()
-        return EventPageType(**event_page_to_type(page))
+        return PublishedEventPayload(
+            event=EventType(**event_to_type(event)),
+            page=EventPageType(**event_page_to_type(event_page)),
+            public_path=f"/event/{event.id}/{event.slug}",
+        )
 
     @strawberry.mutation
     @require_auth
-    async def unpublish_event_page(
+    async def unpublish_event(
         self,
         info: Info,
         event_id: uuid.UUID,
-    ) -> EventPageType:
+    ) -> PublishedEventPayload:
         session = get_session(info)
         auth_user = get_auth_user(info)
         event_service = EventService(session)
         await event_service.ensure_organizer(event_id, auth_user.user_id)
 
+        event = await event_service.get_by_id_for_update(event_id)
+        if not event:
+            raise GraphQLError("Event not found")
+
         page_service = EventPageService(session)
-        page = await page_service.unpublish(event_id)
+        event_page = await page_service.unpublish(event_id)
+        event.status = "draft"
+        event.updated_at = datetime.utcnow()
         await session.commit()
-        return EventPageType(**event_page_to_type(page))
+        return PublishedEventPayload(
+            event=EventType(**event_to_type(event)),
+            page=EventPageType(**event_page_to_type(event_page)),
+            public_path=f"/event/{event.id}/{event.slug}",
+        )

@@ -12,6 +12,22 @@ export const ORGANIZATIONS = `
 	}
 `;
 
+export const ADMIN_ORGANIZATIONS = `
+	query AdminOrganizations {
+		me {
+			organizations(role: "admin") {
+				id
+				name
+				slug
+				description
+				logo_url: logoUrl
+				website_url: websiteUrl
+				is_verified: isVerified
+			}
+		}
+	}
+`;
+
 export const ORGANIZATION = `
 	query Organization($id: UUID!) {
 		organization(id: $id) {

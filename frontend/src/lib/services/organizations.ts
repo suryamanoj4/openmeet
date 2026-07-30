@@ -1,14 +1,23 @@
 import { graphqlClient } from '$lib/graphql/client';
-import { ORGANIZATIONS, ORGANIZATION, ORGANIZATION_MEMBERS, CREATE_ORGANIZATION, UPDATE_ORGANIZATION, ADD_ORG_MEMBER } from '$lib/graphql/queries/organizations';
+import { ORGANIZATIONS, ADMIN_ORGANIZATIONS, ORGANIZATION, ORGANIZATION_MEMBERS, CREATE_ORGANIZATION, UPDATE_ORGANIZATION, ADD_ORG_MEMBER } from '$lib/graphql/queries/organizations';
 import type { Organization } from '$lib/graphql/types';
 
 interface OrgsResponse { organizations: Organization[] }
+interface AdminOrgsResponse { me: { organizations: Organization[] } | null }
 interface OrgResponse { organization: Organization | null }
 interface MembersResponse { organization_members: { id: string; user_id: string; role: string; is_active: boolean }[] }
 
 export async function listOrganizations(limit = 50, skip = 0): Promise<Organization[]> {
 	const r = await graphqlClient.query<OrgsResponse>(ORGANIZATIONS, { limit, skip }).toPromise();
 	return r.data?.organizations ?? [];
+}
+
+export async function listAdminOrganizations(): Promise<Organization[]> {
+	const r = await graphqlClient.query<AdminOrgsResponse>(ADMIN_ORGANIZATIONS, {}).toPromise();
+	if (r.error) {
+		throw new Error(r.error.message);
+	}
+	return r.data?.me?.organizations ?? [];
 }
 
 export async function getOrganization(id: string): Promise<Organization | null> {
