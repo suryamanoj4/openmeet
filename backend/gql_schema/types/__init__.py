@@ -1,6 +1,6 @@
 from gql_schema.types.user import UserType
 from gql_schema.types.organization import OrganizationType
-from gql_schema.types.event import EventType
+from gql_schema.types.event import EventType, PublishedEventPayload, PublicEventPayload
 from gql_schema.types.member import MemberType
 from gql_schema.types.ticket import TicketType
 from gql_schema.types.order import OrderType
@@ -19,6 +19,8 @@ __all__ = [
     "UserType",
     "OrganizationType",
     "EventType",
+    "PublishedEventPayload",
+    "PublicEventPayload",
     "MemberType",
     "TicketType",
     "OrderType",

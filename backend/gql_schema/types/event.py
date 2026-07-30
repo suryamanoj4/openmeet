@@ -5,6 +5,9 @@ from typing import Optional
 import strawberry
 from strawberry.scalars import JSON
 
+from gql_schema.types.event_page import EventPageType
+from gql_schema.types.ticket import TicketType
+
 
 @strawberry.type
 class EventType:
@@ -35,3 +38,17 @@ class EventType:
     settings: Optional[JSON]
     created_at: datetime
     updated_at: datetime
+
+
+@strawberry.type
+class PublishedEventPayload:
+    event: EventType
+    page: EventPageType
+    public_path: str
+
+
+@strawberry.type
+class PublicEventPayload:
+    event: EventType
+    page: EventPageType
+    tickets: list[TicketType]

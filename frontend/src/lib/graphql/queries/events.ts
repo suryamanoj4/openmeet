@@ -182,20 +182,66 @@ export const SAVE_EVENT_PAGE = `
 	}
 `;
 
-export const PUBLISH_EVENT_PAGE = `
-	mutation PublishEventPage($event_id: UUID!) {
-		publish_event_page: publishEventPage(eventId: $event_id) {
-			id
-			is_published: isPublished
+export const PUBLISH_EVENT = `
+	mutation PublishEvent($event_id: UUID!, $page: UpdateEventPageInput!) {
+		publish_event: publishEvent(eventId: $event_id, page: $page) {
+			public_path: publicPath
+			event { id status slug }
+			page {
+				id
+				is_published: isPublished
+			}
 		}
 	}
 `;
 
-export const UNPUBLISH_EVENT_PAGE = `
-	mutation UnpublishEventPage($event_id: UUID!) {
-		unpublish_event_page: unpublishEventPage(eventId: $event_id) {
-			id
-			is_published: isPublished
+export const UNPUBLISH_EVENT = `
+	mutation UnpublishEvent($event_id: UUID!) {
+		unpublish_event: unpublishEvent(eventId: $event_id) {
+			public_path: publicPath
+			event { id status slug }
+			page {
+				id
+				is_published: isPublished
+			}
 		}
+	}
+`;
+
+export const PUBLIC_EVENTS = `
+	query PublicEvents($limit: Int, $skip: Int) {
+		public_events: publicEvents(limit: $limit, skip: $skip) {
+			id name slug description event_type: eventType status visibility
+			start_date: startDate end_date: endDate timezone
+			venue_name: venueName venue_city: venueCity venue_country: venueCountry
+			is_online: isOnline cover_image_url: coverImageUrl
+			max_attendees: maxAttendees organization_id: organizationId
+		}
+	}
+`;
+
+export const PUBLIC_EVENT = `
+	query PublicEvent($id: UUID!, $slug: String!) {
+		public_event: publicEvent(id: $id, slug: $slug) {
+			event {
+				id name slug description event_type: eventType status visibility
+				start_date: startDate end_date: endDate timezone
+				venue_name: venueName venue_address: venueAddress venue_city: venueCity
+				venue_country: venueCountry is_online: isOnline online_url: onlineUrl
+				max_attendees: maxAttendees cover_image_url: coverImageUrl
+				organization_id: organizationId
+			}
+			page { id blocks is_published: isPublished }
+			tickets {
+				id name description price currency quantity sold_quantity: soldQuantity
+				min_per_order: minPerOrder max_per_order: maxPerOrder
+			}
+		}
+	}
+`;
+
+export const RESOLVE_PUBLIC_EVENT_SLUG = `
+	query ResolvePublicEventSlug($slug: String!) {
+		event: resolvePublicEventSlug(slug: $slug) { id slug }
 	}
 `;

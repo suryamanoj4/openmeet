@@ -14,7 +14,6 @@ class CreateEventInput:
     slug: str
     description: Optional[str] = None
     event_type: str = "conference"
-    status: str = "draft"
     visibility: str = "public"
     start_date: datetime
     end_date: datetime
@@ -40,7 +39,6 @@ class UpdateEventInput:
     name: Optional[str] = None
     description: Optional[str] = None
     event_type: Optional[str] = None
-    status: Optional[str] = None
     visibility: Optional[str] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None

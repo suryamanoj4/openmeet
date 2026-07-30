@@ -75,7 +75,8 @@
 	}
 
 	function handleRegister(eventId: string) {
-		goto(`/event/${eventId}/checkout`);
+		const event = data.events.find((item) => item.id === eventId);
+		if (event) goto(`/event/${event.id}/${event.slug}`);
 	}
 
 	function handleCreateEvent() {

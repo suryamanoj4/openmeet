@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { createEvent } from '$lib/services/events';
-	import { toCreateEventInput } from '$lib/services/event-input';
+	import { minimumFutureDatetime, toCreateEventInput, validateEventSchedule } from '$lib/services/event-input';
 	import { listAdminOrganizations } from '$lib/services/organizations';
 	import Button from '$lib/components/ui/button.svelte';
 	import Input from '$lib/components/ui/input.svelte';
@@ -32,6 +32,11 @@
 	async function handleSubmit(e: Event) {
 		e.preventDefault(); error = null; saving = true;
 		try {
+			const scheduleError = validateEventSchedule(start_date, end_date);
+			if (scheduleError) {
+				error = scheduleError;
+				return;
+			}
 			const event = await createEvent(toCreateEventInput({
 				organization_id, name, slug, description, event_type, start_date, end_date,
 				venue_city, is_online, cover_image_url
@@ -41,6 +46,8 @@
 		} catch (err) { error = err instanceof Error ? err.message : 'Failed'; }
 		finally { saving = false; }
 	}
+
+	let minimumStart = $derived(minimumFutureDatetime());
 </script>
 
 <div class="mx-auto max-w-2xl px-6 py-8">
@@ -64,8 +71,8 @@
 					</div>
 				</div>
 				<div class="grid grid-cols-2 gap-4">
-					<div class="space-y-1.5"><Label for="sd">Start Date</Label><Input id="sd" type="datetime-local" bind:value={start_date} required /></div>
-					<div class="space-y-1.5"><Label for="ed">End Date</Label><Input id="ed" type="datetime-local" bind:value={end_date} required /></div>
+					<div class="space-y-1.5"><Label for="sd">Start Date</Label><Input id="sd" type="datetime-local" min={minimumStart} bind:value={start_date} required /></div>
+					<div class="space-y-1.5"><Label for="ed">End Date</Label><Input id="ed" type="datetime-local" min={start_date || minimumStart} bind:value={end_date} required /></div>
 				</div>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="space-y-1.5"><Label for="city">City</Label><Input id="city" bind:value={venue_city} /></div>

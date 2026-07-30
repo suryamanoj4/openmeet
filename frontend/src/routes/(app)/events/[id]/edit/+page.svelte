@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { getEvent, updateEvent } from '$lib/services/events';
-	import { toUpdateEventInput } from '$lib/services/event-input';
+	import { minimumFutureDatetime, toDatetimeLocalValue, toUpdateEventInput, validateEventSchedule } from '$lib/services/event-input';
 	import Button from '$lib/components/ui/button.svelte';
 	import Input from '$lib/components/ui/input.svelte';
 	import Label from '$lib/components/ui/label.svelte';
@@ -15,6 +15,8 @@
 
 	let name = $state(''); let slug = $state(''); let description = $state('');
 	let event_type = $state('conference'); let venue_city = $state(''); let is_online = $state(false);
+	let start_date = $state(''); let end_date = $state('');
+	let event_status = $state('draft'); let original_start_date = $state('');
 	let cover_image_url = $state('');
 	let error = $state<string | null>(null); let saving = $state(false); let loading = $state(true);
 	let eid = $state('');
@@ -25,6 +27,8 @@
 		if (event) {
 			name = event.name; slug = event.slug; description = event.description || '';
 			event_type = event.event_type; venue_city = event.venue_city || '';
+			start_date = toDatetimeLocalValue(event.start_date); end_date = toDatetimeLocalValue(event.end_date);
+			original_start_date = start_date; event_status = event.status;
 			is_online = event.is_online; cover_image_url = event.cover_image_url || '';
 		}
 		loading = false;
@@ -33,12 +37,20 @@
 	async function handleSubmit(e: Event) {
 		e.preventDefault(); error = null; saving = true;
 		try {
+			const allowPastStart = event_status === 'published' && start_date === original_start_date;
+			const scheduleError = validateEventSchedule(start_date, end_date, new Date(), allowPastStart);
+			if (scheduleError) {
+				error = scheduleError;
+				return;
+			}
 			await updateEvent(eid, toUpdateEventInput({
-				name, slug, description, event_type, venue_city, is_online, cover_image_url
+				name, slug, description, event_type, start_date, end_date, venue_city, is_online, cover_image_url
 			}));
 			goto(`/events/${eid}`);
 		} catch (err) { error = err instanceof Error ? err.message : 'Failed'; } finally { saving = false; }
 	}
+
+	let minimumStart = $derived(minimumFutureDatetime());
 </script>
 
 <div class="mx-auto max-w-2xl px-6 py-8">
@@ -58,6 +70,10 @@
 					</div>
 					<div class="space-y-1.5"><Label for="desc">Description</Label><textarea id="desc" bind:value={description} class="flex min-h-[80px] w-full rounded-lg border border-input bg-surface-container-lowest px-3 py-2 text-body-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"></textarea></div>
 					<div class="space-y-1.5"><Label for="type">Type</Label><select id="type" bind:value={event_type} class="flex h-10 w-full rounded-lg border border-input bg-surface-container-lowest px-3 text-body-md"><option value="conference">Conference</option><option value="workshop">Workshop</option><option value="meetup">Meetup</option><option value="webinar">Webinar</option><option value="hackathon">Hackathon</option></select></div>
+					<div class="grid grid-cols-2 gap-4">
+						<div class="space-y-1.5"><Label for="sd">Start Date</Label><Input id="sd" type="datetime-local" min={minimumStart} bind:value={start_date} required /></div>
+						<div class="space-y-1.5"><Label for="ed">End Date</Label><Input id="ed" type="datetime-local" min={start_date || minimumStart} bind:value={end_date} required /></div>
+					</div>
 					<div class="grid grid-cols-2 gap-4">
 						<div class="space-y-1.5"><Label for="city">City</Label><Input id="city" bind:value={venue_city} /></div>
 						<div class="space-y-1.5 flex items-end pb-2"><label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" bind:checked={is_online} class="w-4 h-4 rounded border-outline-variant text-primary" /><span class="text-body-md text-fg">Online event</span></label></div>
